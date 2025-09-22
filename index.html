@@ -85,6 +85,18 @@
             100% { transform: rotate(360deg); }
         }
 
+        /* Status de Conexão */
+        #connectionStatus {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 1000;
+            display: none;
+        }
+
         /* Seção de Login */
         .login-container {
             max-width: 450px;
@@ -205,6 +217,11 @@
             flex: 1;
             position: relative;
             overflow: hidden;
+        }
+
+        button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
         }
 
         button::before {
@@ -1254,6 +1271,11 @@
         <p style="margin-top: 15px; color: var(--gray);">Carregando...</p>
     </div>
 
+    <!-- Status de Conexão -->
+    <div id="connectionStatus">
+        <i class="fas fa-wifi"></i> <span id="connectionText">Conectado</span>
+    </div>
+
     <div class="container">
         <!-- Seção de Login -->
         <section id="login-section">
@@ -1703,6 +1725,8 @@
         const viewToggle = document.getElementById("viewToggle");
         const spinner = document.getElementById("spinner");
         const stockAlerts = document.getElementById("stockAlerts");
+        const connectionStatus = document.getElementById("connectionStatus");
+        const connectionText = document.getElementById("connectionText");
         
         // Elementos do dashboard
         const totalItemsEl = document.getElementById("totalItems");
@@ -1749,6 +1773,21 @@
 
         function hideSpinner() {
             spinner.classList.remove('active');
+        }
+
+        // Verificar status de conexão
+        function checkConnection() {
+            if (navigator.onLine) {
+                connectionStatus.style.display = 'block';
+                connectionStatus.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+                connectionStatus.style.color = 'var(--success)';
+                connectionText.textContent = 'Conectado';
+            } else {
+                connectionStatus.style.display = 'block';
+                connectionStatus.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+                connectionStatus.style.color = 'var(--danger)';
+                connectionText.textContent = 'Offline';
+            }
         }
 
         // Verificar tema salvo
@@ -1917,7 +1956,7 @@
             });
         }
 
-        // Adicionar produto
+        // Adicionar produto com atualização otimista
         adicionarBtn.addEventListener("click", async () => {
           const nome = produtoInput.value;
           const quantidade = parseInt(quantidadeInput.value);
@@ -1926,8 +1965,33 @@
 
           if (nome && quantidade > 0) {
             try {
+              // Mostrar spinner e desabilitar botão
               showSpinner();
-              await addDoc(collection(db, "estoque"), {
+              adicionarBtn.disabled = true;
+              adicionarBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adicionando...';
+              
+              // Criar um ID temporário para o produto
+              const tempId = 'temp_' + Date.now();
+              
+              // Adicionar otimisticamente à interface
+              const tempProduto = {
+                id: tempId,
+                nome: nome,
+                quantidade: quantidade,
+                localizacao: localizacao,
+                descricao: descricao,
+                tags: currentTags,
+                usuario: auth.currentUser.email,
+                data: new Date().toISOString(),
+                isTemp: true // Marcar como temporário
+              };
+              
+              // Adicionar à lista localmente
+              produtos.push(tempProduto);
+              renderizarProdutos();
+              
+              // Enviar para o Firebase
+              const docRef = await addDoc(collection(db, "estoque"), {
                 nome: nome,
                 quantidade: quantidade,
                 localizacao: localizacao,
@@ -1939,7 +2003,7 @@
               
               // Registrar movimentação de entrada
               await addDoc(collection(db, "historico"), {
-                produtoId: "",
+                produtoId: docRef.id,
                 produtoNome: nome,
                 tipo: "entrada",
                 quantidade: quantidade,
@@ -1959,9 +2023,17 @@
               
               showNotification("Produto adicionado com sucesso!", "success", "Item Adicionado");
             } catch (error) {
+              console.error("Erro detalhado:", error);
               showNotification("Erro ao adicionar: " + error.message, "error", "Falha na Operação");
+              
+              // Remover o item temporário em caso de erro
+              produtos = produtos.filter(p => !p.isTemp);
+              renderizarProdutos();
             } finally {
               hideSpinner();
+              // Reabilitar botão
+              adicionarBtn.disabled = false;
+              adicionarBtn.innerHTML = '<i class="fas fa-plus"></i> Adicionar ao Estoque';
             }
           } else {
             showNotification("Preencha os campos corretamente!", "error", "Dados Incompletos");
@@ -2023,9 +2095,12 @@
           }
         });
 
-        // Carregar estoque em tempo real
+        // Carregar estoque em tempo real com logs
         function carregarEstoque() {
+          console.log("Configurando listener em tempo real para estoque...");
+          
           onSnapshot(collection(db, "estoque"), (snapshot) => {
+            console.log("Snapshot recebido:", snapshot.size, "documentos");
             produtos = [];
             listaProdutos.innerHTML = "";
             
@@ -2038,6 +2113,7 @@
               const item = docItem.data();
               item.id = docItem.id;
               produtos.push(item);
+              console.log("Produto carregado:", item.nome, item.quantidade);
               
               // Atualizar métricas
               totalItens += item.quantidade;
@@ -2070,16 +2146,19 @@
                 statusIcon = "fas fa-times-circle";
               }
               
+              // Indicador visual para itens temporários
+              const tempIndicator = item.isTemp ? ' <i class="fas fa-sync fa-spin" style="color: var(--warning);"></i>' : '';
+              
               tr.innerHTML = `
-                <td>${item.id.substring(0, 8)}</td>
+                <td>${item.id.substring(0, 8)}${tempIndicator}</td>
                 <td>${item.nome}</td>
                 <td>${item.descricao || "-"}</td>
                 <td>${item.quantidade}</td>
                 <td>${item.localizacao || "-"}</td>
                 <td><span class="status-badge ${statusClass}"><i class="${statusIcon}"></i> ${statusText}</span></td>
                 <td>
-                  <button class="btn-small btn-primary" onclick="editarProduto('${item.id}')"><i class="fas fa-edit"></i></button>
-                  <button class="btn-small btn-danger" onclick="removerProduto('${item.id}')"><i class="fas fa-trash"></i></button>
+                  <button class="btn-small btn-primary" onclick="editarProduto('${item.id}')" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-edit"></i></button>
+                  <button class="btn-small btn-danger" onclick="removerProduto('${item.id}')" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-trash"></i></button>
                 </td>
               `;
               
@@ -2109,7 +2188,95 @@
             
             // Aplicar filtros ativos
             filtrarProdutos();
+          }, (error) => {
+            console.error("Erro no listener de estoque:", error);
+            showNotification("Erro ao sincronizar dados: " + error.message, "error", "Falha na Sincronização");
           });
+        }
+
+        // Função para renderizar produtos
+        function renderizarProdutos() {
+            listaProdutos.innerHTML = "";
+            
+            let totalItens = 0;
+            let highStock = 0;
+            let mediumStock = 0;
+            let lowStock = 0;
+            
+            produtos.forEach((item) => {
+                // Atualizar métricas
+                totalItens += item.quantidade;
+                if (item.quantidade > 10) {
+                    highStock += item.quantidade;
+                } else if (item.quantidade > 3) {
+                    mediumStock += item.quantidade;
+                } else {
+                    lowStock += item.quantidade;
+                }
+                
+                const tr = document.createElement("tr");
+                
+                // Status do estoque
+                let statusClass = "";
+                let statusText = "";
+                let statusIcon = "";
+                
+                if (item.quantidade > 10) {
+                    statusClass = "status-high";
+                    statusText = "Estoque Alto";
+                    statusIcon = "fas fa-check-circle";
+                } else if (item.quantidade > 3) {
+                    statusClass = "status-medium";
+                    statusText = "Estoque Médio";
+                    statusIcon = "fas fa-exclamation-circle";
+                } else {
+                    statusClass = "status-low";
+                    statusText = "Estoque Baixo";
+                    statusIcon = "fas fa-times-circle";
+                }
+                
+                // Indicador visual para itens temporários
+                const tempIndicator = item.isTemp ? ' <i class="fas fa-sync fa-spin" style="color: var(--warning);"></i>' : '';
+                
+                tr.innerHTML = `
+                    <td>${item.id.substring(0, 8)}${tempIndicator}</td>
+                    <td>${item.nome}</td>
+                    <td>${item.descricao || "-"}</td>
+                    <td>${item.quantidade}</td>
+                    <td>${item.localizacao || "-"}</td>
+                    <td><span class="status-badge ${statusClass}"><i class="${statusIcon}"></i> ${statusText}</span></td>
+                    <td>
+                        <button class="btn-small btn-primary" onclick="editarProduto('${item.id}')" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-edit"></i></button>
+                        <button class="btn-small btn-danger" onclick="removerProduto('${item.id}')" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-trash"></i></button>
+                    </td>
+                `;
+                
+                listaProdutos.appendChild(tr);
+            });
+            
+            // Atualizar dashboard
+            totalItemsEl.textContent = totalItens;
+            highStockEl.textContent = highStock;
+            mediumStockEl.textContent = mediumStock;
+            lowStockEl.textContent = lowStock;
+            itemCountEl.textContent = `${produtos.length} itens`;
+            
+            // Verificar alertas de estoque baixo
+            verificarAlertasEstoque();
+            
+            // Atualizar gráfico
+            atualizarGrafico();
+            
+            // Atualizar select de movimentação
+            atualizarSelectMovimentacao();
+            
+            // Atualizar visualização em cards se necessário
+            if (!isTableView) {
+                renderCardsView();
+            }
+            
+            // Aplicar filtros ativos
+            filtrarProdutos();
         }
 
         // Carregar histórico em tempo real
@@ -2934,6 +3101,11 @@
                 notificationEl.style.display = "none";
             }, 5000);
         }
+
+        // Verificar conexão inicialmente e adicionar listeners
+        window.addEventListener('online', checkConnection);
+        window.addEventListener('offline', checkConnection);
+        checkConnection();
     </script>
 </body>
 </html>
