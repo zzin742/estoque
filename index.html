@@ -97,6 +97,41 @@
             display: none;
         }
 
+        /* Console Debug */
+        #debugConsole {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            width: 300px;
+            max-height: 200px;
+            background: rgba(0, 0, 0, 0.8);
+            color: #0f0;
+            padding: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 12px;
+            overflow-y: auto;
+            z-index: 10000;
+            display: none;
+        }
+
+        #debugConsole.show {
+            display: block;
+        }
+
+        #debugToggle {
+            position: fixed;
+            bottom: 10px;
+            left: 320px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            border-radius: 3px;
+            cursor: pointer;
+            z-index: 10000;
+        }
+
         /* Seção de Login */
         .login-container {
             max-width: 450px;
@@ -1276,6 +1311,10 @@
         <i class="fas fa-wifi"></i> <span id="connectionText">Conectado</span>
     </div>
 
+    <!-- Console Debug -->
+    <div id="debugConsole"></div>
+    <button id="debugToggle">Debug</button>
+
     <div class="container">
         <!-- Seção de Login -->
         <section id="login-section">
@@ -1679,6 +1718,15 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
+        // Função de debug
+        function debugLog(message) {
+            console.log(message);
+            const debugConsole = document.getElementById('debugConsole');
+            const timestamp = new Date().toLocaleTimeString();
+            debugConsole.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            debugConsole.scrollTop = debugConsole.scrollHeight;
+        }
+
         // Referências DOM
         const loginSection = document.getElementById("login-section");
         const appSection = document.getElementById("app");
@@ -1727,6 +1775,8 @@
         const stockAlerts = document.getElementById("stockAlerts");
         const connectionStatus = document.getElementById("connectionStatus");
         const connectionText = document.getElementById("connectionText");
+        const debugToggle = document.getElementById("debugToggle");
+        const debugConsole = document.getElementById("debugConsole");
         
         // Elementos do dashboard
         const totalItemsEl = document.getElementById("totalItems");
@@ -1769,11 +1819,18 @@
         // Mostrar/ocultar spinner
         function showSpinner() {
             spinner.classList.add('active');
+            debugLog("Spinner ativado");
         }
 
         function hideSpinner() {
             spinner.classList.remove('active');
+            debugLog("Spinner desativado");
         }
+
+        // Debug toggle
+        debugToggle.addEventListener('click', () => {
+            debugConsole.classList.toggle('show');
+        });
 
         // Verificar status de conexão
         function checkConnection() {
@@ -1782,11 +1839,13 @@
                 connectionStatus.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
                 connectionStatus.style.color = 'var(--success)';
                 connectionText.textContent = 'Conectado';
+                debugLog("Status de conexão: Online");
             } else {
                 connectionStatus.style.display = 'block';
                 connectionStatus.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
                 connectionStatus.style.color = 'var(--danger)';
                 connectionText.textContent = 'Offline';
+                debugLog("Status de conexão: Offline");
             }
         }
 
@@ -1834,10 +1893,13 @@
         // Registro de usuário
         registerBtn.addEventListener("click", async () => {
           try {
+            debugLog("Tentando registrar usuário...");
             showSpinner();
             await createUserWithEmailAndPassword(auth, email.value, password.value);
+            debugLog("Usuário registrado com sucesso");
             showNotification("Usuário registrado com sucesso!", "success", "Registro Concluído");
           } catch (error) {
+            debugLog(`Erro no registro: ${error.message}`);
             showNotification(error.message, "error", "Erro no Registro");
           } finally {
             hideSpinner();
@@ -1847,9 +1909,12 @@
         // Login
         loginBtn.addEventListener("click", async () => {
           try {
+            debugLog("Tentando fazer login...");
             showSpinner();
             await signInWithEmailAndPassword(auth, email.value, password.value);
+            debugLog("Login realizado com sucesso");
           } catch (error) {
+            debugLog(`Erro no login: ${error.message}`);
             showNotification("Erro no login: " + error.message, "error", "Falha na Autenticação");
           } finally {
             hideSpinner();
@@ -1858,12 +1923,14 @@
 
         // Logout
         logoutBtn.addEventListener("click", async () => {
+          debugLog("Fazendo logout...");
           await signOut(auth);
         });
 
         // Verifica se usuário está logado
         onAuthStateChanged(auth, (user) => {
           if (user) {
+            debugLog(`Usuário logado: ${user.email}`);
             loginSection.style.display = "none";
             appSection.style.display = "block";
             carregarEstoque();
@@ -1871,6 +1938,7 @@
             atualizarSelectMovimentacao();
             inicializarCalendario();
           } else {
+            debugLog("Nenhum usuário logado");
             loginSection.style.display = "block";
             appSection.style.display = "none";
           }
@@ -1885,6 +1953,7 @@
             tagInput.value = "";
             currentTags = [];
             renderTags();
+            debugLog("Formulário limpo");
         });
 
         // Sistema de tags
@@ -1894,6 +1963,7 @@
                 if (!currentTags.includes(tagInput.value.trim())) {
                     currentTags.push(tagInput.value.trim());
                     renderTags();
+                    debugLog(`Tag adicionada: ${tagInput.value.trim()}`);
                 }
                 tagInput.value = "";
             }
@@ -1905,6 +1975,7 @@
                 if (!currentEditTags.includes(editTagInput.value.trim())) {
                     currentEditTags.push(editTagInput.value.trim());
                     renderEditTags();
+                    debugLog(`Tag de edição adicionada: ${editTagInput.value.trim()}`);
                 }
                 editTagInput.value = "";
             }
@@ -1927,8 +1998,10 @@
             document.querySelectorAll('.remove-tag').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const index = parseInt(e.target.dataset.index);
+                    const removedTag = currentTags[index];
                     currentTags.splice(index, 1);
                     renderTags();
+                    debugLog(`Tag removida: ${removedTag}`);
                 });
             });
         }
@@ -1950,93 +2023,126 @@
             document.querySelectorAll('.remove-tag').forEach(btn => {
                 btn.addEventListener('click', (e) => {
                     const index = parseInt(e.target.dataset.index);
+                    const removedTag = currentEditTags[index];
                     currentEditTags.splice(index, 1);
                     renderEditTags();
+                    debugLog(`Tag de edição removida: ${removedTag}`);
                 });
             });
         }
 
-        // Adicionar produto com atualização otimista
+        // Adicionar produto com melhor tratamento de erros
         adicionarBtn.addEventListener("click", async () => {
+          debugLog("=== INÍCIO DO PROCESSO DE ADIÇÃO ===");
+          
           const nome = produtoInput.value;
           const quantidade = parseInt(quantidadeInput.value);
           const localizacao = localizacaoInput.value;
           const descricao = descricaoInput.value;
+          
+          debugLog(`Dados do formulário: nome=${nome}, quantidade=${quantidade}, localizacao=${localizacao}`);
 
-          if (nome && quantidade > 0) {
-            try {
-              // Mostrar spinner e desabilitar botão
-              showSpinner();
-              adicionarBtn.disabled = true;
-              adicionarBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adicionando...';
-              
-              // Criar um ID temporário para o produto
-              const tempId = 'temp_' + Date.now();
-              
-              // Adicionar otimisticamente à interface
-              const tempProduto = {
-                id: tempId,
-                nome: nome,
-                quantidade: quantidade,
-                localizacao: localizacao,
-                descricao: descricao,
-                tags: currentTags,
-                usuario: auth.currentUser.email,
-                data: new Date().toISOString(),
-                isTemp: true // Marcar como temporário
-              };
-              
-              // Adicionar à lista localmente
-              produtos.push(tempProduto);
-              renderizarProdutos();
-              
-              // Enviar para o Firebase
-              const docRef = await addDoc(collection(db, "estoque"), {
-                nome: nome,
-                quantidade: quantidade,
-                localizacao: localizacao,
-                descricao: descricao,
-                tags: currentTags,
-                usuario: auth.currentUser.email,
-                data: new Date().toISOString()
-              });
-              
-              // Registrar movimentação de entrada
-              await addDoc(collection(db, "historico"), {
-                produtoId: docRef.id,
-                produtoNome: nome,
-                tipo: "entrada",
-                quantidade: quantidade,
-                motivo: "Cadastro inicial",
-                usuario: auth.currentUser.email,
-                data: new Date().toISOString()
-              });
-              
-              // Limpar campos
-              produtoInput.value = "";
-              quantidadeInput.value = "";
-              localizacaoInput.value = "";
-              descricaoInput.value = "";
-              tagInput.value = "";
-              currentTags = [];
-              renderTags();
-              
-              showNotification("Produto adicionado com sucesso!", "success", "Item Adicionado");
-            } catch (error) {
-              console.error("Erro detalhado:", error);
-              showNotification("Erro ao adicionar: " + error.message, "error", "Falha na Operação");
-              
-              // Remover o item temporário em caso de erro
-              produtos = produtos.filter(p => !p.isTemp);
-              renderizarProdutos();
-            } finally {
-              hideSpinner();
-              // Reabilitar botão
-              adicionarBtn.disabled = false;
-              adicionarBtn.innerHTML = '<i class="fas fa-plus"></i> Adicionar ao Estoque';
+          if (!nome) {
+            debugLog("ERRO: Nome do produto não informado");
+            showNotification("Por favor, informe o nome do produto!", "error", "Dados Incompletos");
+            return;
+          }
+          
+          if (!quantidade || quantidade <= 0) {
+            debugLog("ERRO: Quantidade inválida");
+            showNotification("Por favor, informe uma quantidade válida!", "error", "Dados Incompletos");
+            return;
+          }
+
+          try {
+            // Mostrar spinner e desabilitar botão
+            debugLog("Mostrando spinner e desabilitando botão");
+            showSpinner();
+            adicionarBtn.disabled = true;
+            adicionarBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adicionando...';
+            
+            // Criar um ID temporário para o produto
+            const tempId = 'temp_' + Date.now();
+            debugLog(`ID temporário criado: ${tempId}`);
+            
+            // Adicionar otimisticamente à interface
+            const tempProduto = {
+              id: tempId,
+              nome: nome,
+              quantidade: quantidade,
+              localizacao: localizacao,
+              descricao: descricao,
+              tags: currentTags,
+              usuario: auth.currentUser ? auth.currentUser.email : "desconhecido",
+              data: new Date().toISOString(),
+              isTemp: true // Marcar como temporário
+            };
+            
+            debugLog("Adicionando produto otimista à interface");
+            // Adicionar à lista localmente
+            produtos.push(tempProduto);
+            renderizarProdutos();
+            
+            // Verificar se o usuário está autenticado
+            if (!auth.currentUser) {
+                throw new Error("Usuário não autenticado. Por favor, faça login novamente.");
             }
-          } else {
-            showNotification("Preencha os campos corretamente!", "error", "Dados Incompletos");
+            
+            debugLog("Enviando dados para o Firebase");
+            
+            // Enviar para o Firebase
+            const docRef = await addDoc(collection(db, "estoque"), {
+              nome: nome,
+              quantidade: quantidade,
+              localizacao: localizacao,
+              descricao: descricao,
+              tags: currentTags,
+              usuario: auth.currentUser.email,
+              data: new Date().toISOString()
+            });
+            
+            debugLog(`Documento adicionado com ID: ${docRef.id}`);
+            
+            // Registrar movimentação de entrada
+            debugLog("Registrando movimentação de entrada");
+            await addDoc(collection(db, "historico"), {
+              produtoId: docRef.id,
+              produtoNome: nome,
+              tipo: "entrada",
+              quantidade: quantidade,
+              motivo: "Cadastro inicial",
+              usuario: auth.currentUser.email,
+              data: new Date().toISOString()
+            });
+            
+            debugLog("Movimentação registrada com sucesso");
+            
+            // Limpar campos
+            debugLog("Limpando formulário");
+            produtoInput.value = "";
+            quantidadeInput.value = "";
+            localizacaoInput.value = "";
+            descricaoInput.value = "";
+            tagInput.value = "";
+            currentTags = [];
+            renderTags();
+            
+            debugLog("=== PROCESSO DE ADIÇÃO CONCLUÍDO COM SUCESSO ===");
+            showNotification("Produto adicionado com sucesso!", "success", "Item Adicionado");
+          } catch (error) {
+            debugLog(`ERRO FATAL: ${error.message}`);
+            console.error("Erro detalhado:", error);
+            showNotification("Erro ao adicionar: " + error.message, "error", "Falha na Operação");
+            
+            // Remover o item temporário em caso de erro
+            produtos = produtos.filter(p => !p.isTemp);
+            renderizarProdutos();
+          } finally {
+            debugLog("Finalizando processo de adição");
+            hideSpinner();
+            // Reabilitar botão
+            adicionarBtn.disabled = false;
+            adicionarBtn.innerHTML = '<i class="fas fa-plus"></i> Adicionar ao Estoque';
           }
         });
 
@@ -2049,6 +2155,7 @@
 
           if (produtoId && quantidade > 0) {
             try {
+              debugLog(`Iniciando movimentação: produtoId=${produtoId}, quantidade=${quantidade}, tipo=${tipo}`);
               showSpinner();
               // Buscar produto
               const produtoRef = doc(db, "estoque", produtoId);
@@ -2061,9 +2168,12 @@
                   : produtoData.quantidade - quantidade;
                 
                 if (novaQuantidade < 0) {
+                  debugLog("ERRO: Quantidade insuficiente em estoque");
                   showNotification("Quantidade insuficiente em estoque!", "error", "Estoque Insuficiente");
                   return;
                 }
+                
+                debugLog(`Atualizando quantidade de ${produtoData.quantidade} para ${novaQuantidade}`);
                 
                 // Atualizar produto
                 await updateDoc(produtoRef, { quantidade: novaQuantidade });
@@ -2079,28 +2189,35 @@
                   data: new Date().toISOString()
                 });
                 
+                debugLog("Movimentação registrada com sucesso");
+                
                 // Limpar campos
                 movQuantidade.value = "";
                 movMotivo.value = "";
                 
                 showNotification(`Movimentação de ${tipo} registrada com sucesso!`, "success", "Movimentação Registrada");
+              } else {
+                debugLog("ERRO: Produto não encontrado");
+                showNotification("Produto não encontrado!", "error", "Falha na Operação");
               }
             } catch (error) {
+              debugLog(`ERRO na movimentação: ${error.message}`);
               showNotification("Erro na movimentação: " + error.message, "error", "Falha na Operação");
             } finally {
               hideSpinner();
             }
           } else {
+            debugLog("ERRO: Dados incompletos para movimentação");
             showNotification("Preencha os campos corretamente!", "error", "Dados Incompletos");
           }
         });
 
-        // Carregar estoque em tempo real com logs
+        // Carregar estoque em tempo real com logs detalhados
         function carregarEstoque() {
-          console.log("Configurando listener em tempo real para estoque...");
+          debugLog("Configurando listener em tempo real para estoque...");
           
           onSnapshot(collection(db, "estoque"), (snapshot) => {
-            console.log("Snapshot recebido:", snapshot.size, "documentos");
+            debugLog(`Snapshot recebido: ${snapshot.size} documentos`);
             produtos = [];
             listaProdutos.innerHTML = "";
             
@@ -2113,7 +2230,7 @@
               const item = docItem.data();
               item.id = docItem.id;
               produtos.push(item);
-              console.log("Produto carregado:", item.nome, item.quantidade);
+              debugLog(`Produto carregado: ${item.nome}, quantidade: ${item.quantidade}`);
               
               // Atualizar métricas
               totalItens += item.quantidade;
@@ -2188,7 +2305,10 @@
             
             // Aplicar filtros ativos
             filtrarProdutos();
+            
+            debugLog("Interface atualizada com novos dados");
           }, (error) => {
+            debugLog(`ERRO no listener de estoque: ${error.message}`);
             console.error("Erro no listener de estoque:", error);
             showNotification("Erro ao sincronizar dados: " + error.message, "error", "Falha na Sincronização");
           });
@@ -2196,6 +2316,7 @@
 
         // Função para renderizar produtos
         function renderizarProdutos() {
+            debugLog("Renderizando produtos na interface");
             listaProdutos.innerHTML = "";
             
             let totalItens = 0;
@@ -2277,12 +2398,17 @@
             
             // Aplicar filtros ativos
             filtrarProdutos();
+            
+            debugLog("Renderização concluída");
         }
 
         // Carregar histórico em tempo real
         function carregarHistorico() {
+          debugLog("Configurando listener em tempo real para histórico");
+          
           const q = query(collection(db, "historico"), orderBy("data", "desc"));
           onSnapshot(q, (snapshot) => {
+            debugLog(`Snapshot de histórico recebido: ${snapshot.size} documentos`);
             historico = [];
             historicoList.innerHTML = "";
             
@@ -2311,11 +2437,16 @@
               
               historicoList.appendChild(div);
             });
+          }, (error) => {
+            debugLog(`ERRO no listener de histórico: ${error.message}`);
+            console.error("Erro no listener de histórico:", error);
           });
         }
 
         // Atualizar select de movimentação
         function atualizarSelectMovimentacao() {
+          debugLog("Atualizando select de movimentação");
+          
           movProduto.innerHTML = '<option value="">Selecione um produto</option>';
           
           produtos.forEach(produto => {
@@ -2324,10 +2455,14 @@
             option.textContent = `${produto.nome} (${produto.quantidade} unidades)`;
             movProduto.appendChild(option);
           });
+          
+          debugLog("Select de movimentação atualizado");
         }
 
         // Atualizar gráfico
         function atualizarGrafico() {
+          debugLog("Atualizando gráfico");
+          
           const ctx = document.getElementById('estoqueChart').getContext('2d');
           
           // Agrupar produtos por tipo
@@ -2418,10 +2553,14 @@
               }
             }
           });
+          
+          debugLog("Gráfico atualizado");
         }
 
         // Renderizar visualização em cards
         function renderCardsView() {
+            debugLog("Renderizando visualização em cards");
+            
             cardsView.innerHTML = '';
             
             const filteredProducts = getFilteredProducts();
@@ -2462,11 +2601,14 @@
             
             // Atualizar contador
             itemCountEl.textContent = `${filteredProducts.length} itens`;
+            
+            debugLog("Visualização em cards renderizada");
         }
 
         // Editar produto
         window.editarProduto = async (id) => {
           try {
+            debugLog(`Editando produto: ${id}`);
             showSpinner();
             const produtoRef = doc(db, "estoque", id);
             const produtoSnap = await getDoc(produtoRef);
@@ -2483,8 +2625,14 @@
               
               currentEditId = id;
               editModal.style.display = "flex";
+              
+              debugLog("Modal de edição aberto");
+            } else {
+              debugLog("ERRO: Produto não encontrado para edição");
+              showNotification("Produto não encontrado!", "error", "Falha na Operação");
             }
           } catch (error) {
+            debugLog(`ERRO ao carregar produto para edição: ${error.message}`);
             showNotification("Erro ao carregar produto: " + error.message, "error", "Falha na Operação");
           } finally {
             hideSpinner();
@@ -2495,6 +2643,7 @@
         saveEditBtn.addEventListener("click", async () => {
           if (currentEditId) {
             try {
+              debugLog(`Salvando edição do produto: ${currentEditId}`);
               showSpinner();
               const produtoRef = doc(db, "estoque", currentEditId);
               
@@ -2507,8 +2656,10 @@
               });
               
               editModal.style.display = "none";
+              debugLog("Edição salva com sucesso");
               showNotification("Produto atualizado com sucesso!", "success", "Atualização Concluída");
             } catch (error) {
+              debugLog(`ERRO ao atualizar produto: ${error.message}`);
               showNotification("Erro ao atualizar produto: " + error.message, "error", "Falha na Operação");
             } finally {
               hideSpinner();
@@ -2518,10 +2669,12 @@
 
         // Cancelar edição
         cancelEditBtn.addEventListener("click", () => {
+          debugLog("Cancelando edição");
           editModal.style.display = "none";
         });
 
         closeModalBtn.addEventListener("click", () => {
+          debugLog("Fechando modal de edição");
           editModal.style.display = "none";
         });
 
@@ -2529,10 +2682,13 @@
         window.removerProduto = async (id) => {
           if (confirm("Tem certeza que deseja remover este produto? Esta ação não pode ser desfeita.")) {
             try {
+              debugLog(`Removendo produto: ${id}`);
               showSpinner();
               await deleteDoc(doc(db, "estoque", id));
+              debugLog("Produto removido com sucesso");
               showNotification("Produto removido com sucesso!", "success", "Item Removido");
             } catch (error) {
+              debugLog(`ERRO ao remover produto: ${error.message}`);
               showNotification("Erro ao remover produto: " + error.message, "error", "Falha na Operação");
             } finally {
               hideSpinner();
@@ -2676,6 +2832,7 @@
 
         // Limpar filtros
         clearFiltersBtn.addEventListener("click", () => {
+          debugLog("Limpando filtros");
           searchInput.value = "";
           filterTipo.value = "";
           filterStatus.value = "";
@@ -2685,21 +2842,25 @@
 
         // Exportar CSV
         exportCSVBtn.addEventListener("click", () => {
+            debugLog("Exportando dados para CSV");
             exportData('csv');
         });
 
         // Exportar PDF
         exportPDFBtn.addEventListener("click", () => {
+            debugLog("Exportando dados para PDF");
             exportData('pdf');
         });
 
         // Exportar Excel
         exportExcelBtn.addEventListener("click", () => {
+            debugLog("Exportando dados para Excel");
             exportData('excel');
         });
 
         // Função de exportação de dados
         function exportData(format) {
+            debugLog(`Iniciando exportação no formato: ${format}`);
             showSpinner();
             
             const filteredProducts = getFilteredProducts();
@@ -2728,6 +2889,7 @@
                 a.click();
                 document.body.removeChild(a);
                 
+                debugLog("Exportação CSV concluída");
                 showNotification("Dados exportados com sucesso!", "success", "Exportação Concluída");
             } 
             else if (format === 'pdf') {
@@ -2777,6 +2939,7 @@
                 });
                 
                 doc.save(`estoque_ti_${new Date().toISOString().split('T')[0]}.pdf`);
+                debugLog("Exportação PDF concluída");
                 showNotification("Dados exportados com sucesso!", "success", "Exportação Concluída");
             }
             else if (format === 'excel') {
@@ -2815,6 +2978,7 @@
                 
                 // Salvar arquivo
                 XLSX.writeFile(wb, `estoque_ti_${new Date().toISOString().split('T')[0]}.xlsx`);
+                debugLog("Exportação Excel concluída");
                 showNotification("Dados exportados com sucesso!", "success", "Exportação Concluída");
             }
             
@@ -2823,6 +2987,7 @@
 
         // Verificar alertas de estoque baixo
         function verificarAlertasEstoque() {
+            debugLog("Verificando alertas de estoque baixo");
             stockAlerts.innerHTML = '';
             
             produtos.forEach(produto => {
@@ -2834,12 +2999,14 @@
                         <p>${produto.nome}: apenas ${produto.quantidade} unidades restantes</p>
                     `;
                     stockAlerts.appendChild(alert);
+                    debugLog(`Alerta de estoque baixo para: ${produto.nome}`);
                 }
             });
         }
 
         // Inicializar calendário
         function inicializarCalendario() {
+            debugLog("Inicializando calendário");
             renderizarCalendario();
             
             prevMonthBtn.addEventListener('click', () => {
@@ -2909,15 +3076,19 @@
                 
                 calendarGrid.appendChild(dayEl);
             }
+            
+            debugLog("Calendário renderizado");
         }
 
         // Relatórios
         reportInventory.addEventListener('click', () => {
+            debugLog("Gerando relatório de inventário");
             exportData('pdf');
         });
 
         reportMovement.addEventListener('click', () => {
             // Gerar relatório de movimentações
+            debugLog("Gerando relatório de movimentações");
             showSpinner();
             
             const { jsPDF } = window.jspdf;
@@ -2957,15 +3128,18 @@
             });
             
             doc.save(`movimentacoes_estoque_${new Date().toISOString().split('T')[0]}.pdf`);
+            debugLog("Relatório de movimentações gerado");
             showNotification("Relatório gerado com sucesso!", "success", "Relatório Concluído");
             hideSpinner();
         });
 
         reportLowStock.addEventListener('click', () => {
             // Filtrar produtos com estoque baixo
+            debugLog("Gerando relatório de estoque baixo");
             const lowStockProducts = produtos.filter(p => p.quantidade <= 3);
             
             if (lowStockProducts.length === 0) {
+                debugLog("Nenhum produto com estoque baixo encontrado");
                 showNotification("Não há produtos com estoque baixo!", "info", "Informação");
                 return;
             }
@@ -3002,12 +3176,14 @@
             });
             
             doc.save(`estoque_baixo_${new Date().toISOString().split('T')[0]}.pdf`);
+            debugLog("Relatório de estoque baixo gerado");
             showNotification("Relatório gerado com sucesso!", "success", "Relatório Concluído");
             hideSpinner();
         });
 
         reportValue.addEventListener('click', () => {
             // Simular relatório de valorização (valores fictícios)
+            debugLog("Gerando relatório de valorização");
             showSpinner();
             
             const { jsPDF } = window.jspdf;
@@ -3074,12 +3250,14 @@
             doc.text(`Valor Total do Estoque: R$ ${valorTotal.toFixed(2)}`, 20, yPosition);
             
             doc.save(`valorizacao_estoque_${new Date().toISOString().split('T')[0]}.pdf`);
+            debugLog("Relatório de valorização gerado");
             showNotification("Relatório gerado com sucesso!", "success", "Relatório Concluído");
             hideSpinner();
         });
 
         // Mostrar notificação
         function showNotification(message, type, title) {
+            debugLog(`Mostrando notificação: ${title} - ${message}`);
             const notificationEl = document.getElementById("notification");
             const notificationTitleEl = notificationEl.querySelector(".notification-title");
             const notificationMessageEl = document.getElementById("notificationText");
@@ -3106,6 +3284,9 @@
         window.addEventListener('online', checkConnection);
         window.addEventListener('offline', checkConnection);
         checkConnection();
+        
+        // Inicialização
+        debugLog("Aplicação inicializada");
     </script>
 </body>
 </html>
