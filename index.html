@@ -85,17 +85,29 @@
             100% { transform: rotate(360deg); }
         }
 
-        /* Painel de Diagnóstico */
-        .diagnostic-panel {
+        /* Status de Conexão */
+        #connectionStatus {
             position: fixed;
             top: 10px;
+            right: 10px;
+            padding: 5px 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            z-index: 1000;
+            display: none;
+        }
+
+        /* Console Debug */
+        #debugConsole {
+            position: fixed;
+            bottom: 10px;
             left: 10px;
-            width: 350px;
-            max-height: 400px;
-            background: rgba(0, 0, 0, 0.9);
+            width: 300px;
+            max-height: 200px;
+            background: rgba(0, 0, 0, 0.8);
             color: #0f0;
-            padding: 15px;
-            border-radius: 8px;
+            padding: 10px;
+            border-radius: 5px;
             font-family: monospace;
             font-size: 12px;
             overflow-y: auto;
@@ -103,55 +115,21 @@
             display: none;
         }
 
-        .diagnostic-panel.show {
+        #debugConsole.show {
             display: block;
         }
 
-        .diagnostic-toggle {
+        #debugToggle {
             position: fixed;
-            top: 10px;
-            left: 370px;
+            bottom: 10px;
+            left: 320px;
             background: rgba(0, 0, 0, 0.7);
             color: white;
             border: none;
-            padding: 8px 12px;
-            border-radius: 4px;
+            padding: 5px 10px;
+            border-radius: 3px;
             cursor: pointer;
             z-index: 10000;
-        }
-
-        .diagnostic-item {
-            margin-bottom: 8px;
-            padding-bottom: 8px;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-        }
-
-        .diagnostic-item:last-child {
-            border-bottom: none;
-        }
-
-        .diagnostic-status {
-            display: inline-block;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            margin-right: 8px;
-        }
-
-        .diagnostic-status.success {
-            background-color: #10b981;
-        }
-
-        .diagnostic-status.error {
-            background-color: #ef4444;
-        }
-
-        .diagnostic-status.warning {
-            background-color: #f59e0b;
-        }
-
-        .diagnostic-status.info {
-            background-color: #06b6d4;
         }
 
         /* Seção de Login */
@@ -312,15 +290,6 @@
 
         #registerBtn:hover {
             background-color: #4338ca;
-        }
-
-        .test-button {
-            background-color: var(--warning);
-            margin-top: 15px;
-        }
-
-        .test-button:hover {
-            background-color: #d97706;
         }
 
         /* Seção do Aplicativo */
@@ -1337,12 +1306,14 @@
         <p style="margin-top: 15px; color: var(--gray);">Carregando...</p>
     </div>
 
-    <!-- Painel de Diagnóstico -->
-    <div class="diagnostic-panel" id="diagnosticPanel">
-        <h3 style="color: white; margin-bottom: 15px;">Painel de Diagnóstico</h3>
-        <div id="diagnosticContent"></div>
+    <!-- Status de Conexão -->
+    <div id="connectionStatus">
+        <i class="fas fa-wifi"></i> <span id="connectionText">Conectado</span>
     </div>
-    <button class="diagnostic-toggle" id="diagnosticToggle">Diagnóstico</button>
+
+    <!-- Console Debug -->
+    <div id="debugConsole"></div>
+    <button id="debugToggle">Debug</button>
 
     <div class="container">
         <!-- Seção de Login -->
@@ -1365,7 +1336,6 @@
                     <button id="loginBtn"><i class="fas fa-sign-in-alt"></i> Entrar</button>
                     <button id="registerBtn"><i class="fas fa-user-plus"></i> Registrar</button>
                 </div>
-                <button id="testConnectionBtn" class="test-button"><i class="fas fa-wifi"></i> Testar Conexão</button>
                 <div class="login-footer">
                     Desenvolvido por <a href="#">José Luiz</a>
                 </div>
@@ -1475,7 +1445,6 @@
                         </div>
                     </div>
                     <button id="adicionar"><i class="fas fa-plus"></i> Adicionar ao Estoque</button>
-                    <button id="testAddBtn" class="test-button"><i class="fas fa-flask"></i> Testar Adição</button>
                 </div>
                 
                 <!-- Card de Movimentação -->
@@ -1731,9 +1700,7 @@
           orderBy,
           where,
           getDocs,
-          getDoc,
-          enableIndexedDbPersistence,
-          connectFirestoreEmulator
+          getDoc
         } from "https://www.gstatic.com/firebasejs/12.3.0/firebase-firestore.js";
 
         // 🔧 Seu firebaseConfig
@@ -1751,130 +1718,13 @@
         const auth = getAuth(app);
         const db = getFirestore(app);
 
-        // Sistema de Diagnóstico
-        const diagnosticPanel = document.getElementById('diagnosticPanel');
-        const diagnosticToggle = document.getElementById('diagnosticToggle');
-        const diagnosticContent = document.getElementById('diagnosticContent');
-        
-        let diagnosticData = {
-            firebaseInit: false,
-            authStatus: 'unknown',
-            firestoreInit: false,
-            networkStatus: 'unknown',
-            lastError: null,
-            operations: []
-        };
-
-        // Função para adicionar entrada de diagnóstico
-        function addDiagnosticEntry(type, message, status = 'info') {
+        // Função de debug
+        function debugLog(message) {
+            console.log(message);
+            const debugConsole = document.getElementById('debugConsole');
             const timestamp = new Date().toLocaleTimeString();
-            const entry = {
-                timestamp,
-                type,
-                message,
-                status
-            };
-            
-            diagnosticData.operations.push(entry);
-            
-            // Limitar a 50 entradas
-            if (diagnosticData.operations.length > 50) {
-                diagnosticData.operations.shift();
-            }
-            
-            updateDiagnosticPanel();
-        }
-
-        // Função para atualizar o painel de diagnóstico
-        function updateDiagnosticPanel() {
-            diagnosticContent.innerHTML = '';
-            
-            // Status do Firebase
-            const firebaseStatus = document.createElement('div');
-            firebaseStatus.className = 'diagnostic-item';
-            firebaseStatus.innerHTML = `
-                <span class="diagnostic-status ${diagnosticData.firebaseInit ? 'success' : 'error'}"></span>
-                <strong>Firebase:</strong> ${diagnosticData.firebaseInit ? 'Inicializado' : 'Não inicializado'}
-            `;
-            diagnosticContent.appendChild(firebaseStatus);
-            
-            // Status da Autenticação
-            const authStatusItem = document.createElement('div');
-            authStatusItem.className = 'diagnostic-item';
-            authStatusItem.innerHTML = `
-                <span class="diagnostic-status ${diagnosticData.authStatus === 'authenticated' ? 'success' : diagnosticData.authStatus === 'not_authenticated' ? 'warning' : 'error'}"></span>
-                <strong>Autenticação:</strong> ${
-                    diagnosticData.authStatus === 'authenticated' ? 'Autenticado' : 
-                    diagnosticData.authStatus === 'not_authenticated' ? 'Não autenticado' : 
-                    'Desconhecido'
-                }
-            `;
-            diagnosticContent.appendChild(authStatusItem);
-            
-            // Status do Firestore
-            const firestoreStatus = document.createElement('div');
-            firestoreStatus.className = 'diagnostic-item';
-            firestoreStatus.innerHTML = `
-                <span class="diagnostic-status ${diagnosticData.firestoreInit ? 'success' : 'error'}"></span>
-                <strong>Firestore:</strong> ${diagnosticData.firestoreInit ? 'Inicializado' : 'Não inicializado'}
-            `;
-            diagnosticContent.appendChild(firestoreStatus);
-            
-            // Status da Rede
-            const networkStatusItem = document.createElement('div');
-            networkStatusItem.className = 'diagnostic-item';
-            networkStatusItem.innerHTML = `
-                <span class="diagnostic-status ${diagnosticData.networkStatus === 'online' ? 'success' : 'error'}"></span>
-                <strong>Rede:</strong> ${diagnosticData.networkStatus === 'online' ? 'Online' : 'Offline'}
-            `;
-            diagnosticContent.appendChild(networkStatusItem);
-            
-            // Último erro
-            if (diagnosticData.lastError) {
-                const errorItem = document.createElement('div');
-                errorItem.className = 'diagnostic-item';
-                errorItem.innerHTML = `
-                    <span class="diagnostic-status error"></span>
-                    <strong>Último Erro:</strong> ${diagnosticData.lastError}
-                `;
-                diagnosticContent.appendChild(errorItem);
-            }
-            
-            // Operações recentes
-            const operationsTitle = document.createElement('div');
-            operationsTitle.style.marginTop = '15px';
-            operationsTitle.style.fontWeight = 'bold';
-            operationsTitle.textContent = 'Operações Recentes:';
-            diagnosticContent.appendChild(operationsTitle);
-            
-            const operationsList = document.createElement('div');
-            operationsList.style.maxHeight = '150px';
-            operationsList.style.overflowY = 'auto';
-            
-            diagnosticData.operations.slice(-10).reverse().forEach(op => {
-                const opItem = document.createElement('div');
-                opItem.style.marginBottom = '5px';
-                opItem.style.fontSize = '11px';
-                opItem.innerHTML = `
-                    <span style="color: #aaa;">[${op.timestamp}]</span> 
-                    <span style="color: ${op.status === 'success' ? '#10b981' : op.status === 'error' ? '#ef4444' : '#06b6d4'}">${op.type}:</span> 
-                    ${op.message}
-                `;
-                operationsList.appendChild(opItem);
-            });
-            
-            diagnosticContent.appendChild(operationsList);
-        }
-
-        // Toggle do painel de diagnóstico
-        diagnosticToggle.addEventListener('click', () => {
-            diagnosticPanel.classList.toggle('show');
-        });
-
-        // Verificar status da rede
-        function updateNetworkStatus() {
-            diagnosticData.networkStatus = navigator.onLine ? 'online' : 'offline';
-            updateDiagnosticPanel();
+            debugConsole.innerHTML += `<div>[${timestamp}] ${message}</div>`;
+            debugConsole.scrollTop = debugConsole.scrollHeight;
         }
 
         // Referências DOM
@@ -1884,14 +1734,12 @@
         const password = document.getElementById("password");
         const loginBtn = document.getElementById("loginBtn");
         const registerBtn = document.getElementById("registerBtn");
-        const testConnectionBtn = document.getElementById("testConnectionBtn");
         const logoutBtn = document.getElementById("logoutBtn");
         const produtoInput = document.getElementById("produto");
         const quantidadeInput = document.getElementById("quantidade");
         const localizacaoInput = document.getElementById("localizacao");
         const descricaoInput = document.getElementById("descricao");
         const adicionarBtn = document.getElementById("adicionar");
-        const testAddBtn = document.getElementById("testAddBtn");
         const clearFormBtn = document.getElementById("clearForm");
         const listaProdutos = document.getElementById("lista-produtos");
         const tableView = document.getElementById("tableView");
@@ -1925,6 +1773,10 @@
         const viewToggle = document.getElementById("viewToggle");
         const spinner = document.getElementById("spinner");
         const stockAlerts = document.getElementById("stockAlerts");
+        const connectionStatus = document.getElementById("connectionStatus");
+        const connectionText = document.getElementById("connectionText");
+        const debugToggle = document.getElementById("debugToggle");
+        const debugConsole = document.getElementById("debugConsole");
         
         // Elementos do dashboard
         const totalItemsEl = document.getElementById("totalItems");
@@ -1967,12 +1819,34 @@
         // Mostrar/ocultar spinner
         function showSpinner() {
             spinner.classList.add('active');
-            addDiagnosticEntry('UI', 'Spinner ativado', 'info');
+            debugLog("Spinner ativado");
         }
 
         function hideSpinner() {
             spinner.classList.remove('active');
-            addDiagnosticEntry('UI', 'Spinner desativado', 'info');
+            debugLog("Spinner desativado");
+        }
+
+        // Debug toggle
+        debugToggle.addEventListener('click', () => {
+            debugConsole.classList.toggle('show');
+        });
+
+        // Verificar status de conexão
+        function checkConnection() {
+            if (navigator.onLine) {
+                connectionStatus.style.display = 'block';
+                connectionStatus.style.backgroundColor = 'rgba(16, 185, 129, 0.2)';
+                connectionStatus.style.color = 'var(--success)';
+                connectionText.textContent = 'Conectado';
+                debugLog("Status de conexão: Online");
+            } else {
+                connectionStatus.style.display = 'block';
+                connectionStatus.style.backgroundColor = 'rgba(239, 68, 68, 0.2)';
+                connectionStatus.style.color = 'var(--danger)';
+                connectionText.textContent = 'Offline';
+                debugLog("Status de conexão: Offline");
+            }
         }
 
         // Verificar tema salvo
@@ -2016,59 +1890,16 @@
             }
         });
 
-        // Testar conexão com Firebase
-        testConnectionBtn.addEventListener('click', async () => {
-            try {
-                addDiagnosticEntry('TESTE', 'Iniciando teste de conexão com Firebase', 'info');
-                showSpinner();
-                
-                // Testar autenticação
-                if (auth.currentUser) {
-                    addDiagnosticEntry('TESTE', `Usuário autenticado: ${auth.currentUser.email}`, 'success');
-                } else {
-                    addDiagnosticEntry('TESTE', 'Nenhum usuário autenticado', 'warning');
-                }
-                
-                // Testar Firestore - tentar ler um documento
-                const testRef = doc(db, "test", "connection");
-                const testDoc = await getDoc(testRef);
-                
-                if (testDoc.exists()) {
-                    addDiagnosticEntry('TESTE', 'Conexão com Firestore bem-sucedida', 'success');
-                } else {
-                    addDiagnosticEntry('TESTE', 'Documento de teste não encontrado (normal)', 'info');
-                }
-                
-                // Testar escrita no Firestore
-                await setDoc(testRef, {
-                    test: true,
-                    timestamp: new Date().toISOString(),
-                    user: auth.currentUser ? auth.currentUser.email : 'anonymous'
-                });
-                
-                addDiagnosticEntry('TESTE', 'Escrita no Firestore bem-sucedida', 'success');
-                
-                showNotification("Teste de conexão concluído com sucesso!", "success", "Teste Concluído");
-            } catch (error) {
-                addDiagnosticEntry('TESTE', `Erro no teste: ${error.message}`, 'error');
-                diagnosticData.lastError = error.message;
-                showNotification("Erro no teste de conexão: " + error.message, "error", "Falha no Teste");
-            } finally {
-                hideSpinner();
-            }
-        });
-
         // Registro de usuário
         registerBtn.addEventListener("click", async () => {
           try {
-            addDiagnosticEntry('AUTH', 'Tentando registrar usuário', 'info');
+            debugLog("Tentando registrar usuário...");
             showSpinner();
             await createUserWithEmailAndPassword(auth, email.value, password.value);
-            addDiagnosticEntry('AUTH', 'Usuário registrado com sucesso', 'success');
+            debugLog("Usuário registrado com sucesso");
             showNotification("Usuário registrado com sucesso!", "success", "Registro Concluído");
           } catch (error) {
-            addDiagnosticEntry('AUTH', `Erro no registro: ${error.message}`, 'error');
-            diagnosticData.lastError = error.message;
+            debugLog(`Erro no registro: ${error.message}`);
             showNotification(error.message, "error", "Erro no Registro");
           } finally {
             hideSpinner();
@@ -2078,13 +1909,12 @@
         // Login
         loginBtn.addEventListener("click", async () => {
           try {
-            addDiagnosticEntry('AUTH', 'Tentando fazer login', 'info');
+            debugLog("Tentando fazer login...");
             showSpinner();
             await signInWithEmailAndPassword(auth, email.value, password.value);
-            addDiagnosticEntry('AUTH', 'Login realizado com sucesso', 'success');
+            debugLog("Login realizado com sucesso");
           } catch (error) {
-            addDiagnosticEntry('AUTH', `Erro no login: ${error.message}`, 'error');
-            diagnosticData.lastError = error.message;
+            debugLog(`Erro no login: ${error.message}`);
             showNotification("Erro no login: " + error.message, "error", "Falha na Autenticação");
           } finally {
             hideSpinner();
@@ -2093,15 +1923,14 @@
 
         // Logout
         logoutBtn.addEventListener("click", async () => {
-          addDiagnosticEntry('AUTH', 'Fazendo logout', 'info');
+          debugLog("Fazendo logout...");
           await signOut(auth);
         });
 
         // Verifica se usuário está logado
         onAuthStateChanged(auth, (user) => {
           if (user) {
-            addDiagnosticEntry('AUTH', `Usuário logado: ${user.email}`, 'success');
-            diagnosticData.authStatus = 'authenticated';
+            debugLog(`Usuário logado: ${user.email}`);
             loginSection.style.display = "none";
             appSection.style.display = "block";
             carregarEstoque();
@@ -2109,12 +1938,10 @@
             atualizarSelectMovimentacao();
             inicializarCalendario();
           } else {
-            addDiagnosticEntry('AUTH', 'Nenhum usuário logado', 'info');
-            diagnosticData.authStatus = 'not_authenticated';
+            debugLog("Nenhum usuário logado");
             loginSection.style.display = "block";
             appSection.style.display = "none";
           }
-          updateDiagnosticPanel();
         });
 
         // Limpar formulário
@@ -2126,7 +1953,7 @@
             tagInput.value = "";
             currentTags = [];
             renderTags();
-            addDiagnosticEntry('UI', 'Formulário limpo', 'info');
+            debugLog("Formulário limpo");
         });
 
         // Sistema de tags
@@ -2136,7 +1963,7 @@
                 if (!currentTags.includes(tagInput.value.trim())) {
                     currentTags.push(tagInput.value.trim());
                     renderTags();
-                    addDiagnosticEntry('UI', `Tag adicionada: ${tagInput.value.trim()}`, 'info');
+                    debugLog(`Tag adicionada: ${tagInput.value.trim()}`);
                 }
                 tagInput.value = "";
             }
@@ -2148,7 +1975,7 @@
                 if (!currentEditTags.includes(editTagInput.value.trim())) {
                     currentEditTags.push(editTagInput.value.trim());
                     renderEditTags();
-                    addDiagnosticEntry('UI', `Tag de edição adicionada: ${editTagInput.value.trim()}`, 'info');
+                    debugLog(`Tag de edição adicionada: ${editTagInput.value.trim()}`);
                 }
                 editTagInput.value = "";
             }
@@ -2174,7 +2001,7 @@
                     const removedTag = currentTags[index];
                     currentTags.splice(index, 1);
                     renderTags();
-                    addDiagnosticEntry('UI', `Tag removida: ${removedTag}`, 'info');
+                    debugLog(`Tag removida: ${removedTag}`);
                 });
             });
         }
@@ -2199,104 +2026,72 @@
                     const removedTag = currentEditTags[index];
                     currentEditTags.splice(index, 1);
                     renderEditTags();
-                    addDiagnosticEntry('UI', `Tag de edição removida: ${removedTag}`, 'info');
+                    debugLog(`Tag de edição removida: ${removedTag}`);
                 });
             });
         }
 
-        // Testar adição simplificada
-        testAddBtn.addEventListener("click", async () => {
-            try {
-                addDiagnosticEntry('TESTE', 'Iniciando teste de adição simplificada', 'info');
-                showSpinner();
-                
-                // Verificar se o usuário está autenticado
-                if (!auth.currentUser) {
-                    throw new Error("Usuário não autenticado. Por favor, faça login.");
-                }
-                
-                addDiagnosticEntry('TESTE', 'Usuário autenticado, continuando teste', 'success');
-                
-                // Dados de teste fixos
-                const testData = {
-                    nome: "Produto de Teste",
-                    quantidade: 5,
-                    localizacao: "Local de Teste",
-                    descricao: "Descrição do produto de teste",
-                    tags: ["teste"],
-                    usuario: auth.currentUser.email,
-                    data: new Date().toISOString()
-                };
-                
-                addDiagnosticEntry('TESTE', `Dados de teste preparados: ${JSON.stringify(testData)}`, 'info');
-                
-                // Adicionar ao Firestore
-                const docRef = await addDoc(collection(db, "estoque"), testData);
-                addDiagnosticEntry('TESTE', `Documento adicionado com ID: ${docRef.id}`, 'success');
-                
-                // Registrar movimentação
-                await addDoc(collection(db, "historico"), {
-                    produtoId: docRef.id,
-                    produtoNome: testData.nome,
-                    tipo: "entrada",
-                    quantidade: testData.quantidade,
-                    motivo: "Teste de adição",
-                    usuario: auth.currentUser.email,
-                    data: new Date().toISOString()
-                });
-                
-                addDiagnosticEntry('TESTE', 'Movimentação registrada com sucesso', 'success');
-                
-                showNotification("Teste de adição concluído com sucesso!", "success", "Teste Concluído");
-            } catch (error) {
-                addDiagnosticEntry('TESTE', `Erro no teste: ${error.message}`, 'error');
-                diagnosticData.lastError = error.message;
-                showNotification("Erro no teste: " + error.message, "error", "Falha no Teste");
-            } finally {
-                hideSpinner();
-            }
-        });
-
-        // Adicionar produto - Versão simplificada para diagnóstico
+        // Adicionar produto com melhor tratamento de erros
         adicionarBtn.addEventListener("click", async () => {
-          addDiagnosticEntry('ADD', '=== INÍCIO DO PROCESSO DE ADIÇÃO ===', 'info');
+          debugLog("=== INÍCIO DO PROCESSO DE ADIÇÃO ===");
           
           const nome = produtoInput.value;
           const quantidade = parseInt(quantidadeInput.value);
           const localizacao = localizacaoInput.value;
           const descricao = descricaoInput.value;
           
-          addDiagnosticEntry('ADD', `Dados do formulário: nome=${nome}, quantidade=${quantidade}, localizacao=${localizacao}`, 'info');
+          debugLog(`Dados do formulário: nome=${nome}, quantidade=${quantidade}, localizacao=${localizacao}`);
 
-          // Validação básica
           if (!nome) {
-            addDiagnosticEntry('ADD', 'ERRO: Nome do produto não informado', 'error');
+            debugLog("ERRO: Nome do produto não informado");
             showNotification("Por favor, informe o nome do produto!", "error", "Dados Incompletos");
             return;
           }
           
           if (!quantidade || quantidade <= 0) {
-            addDiagnosticEntry('ADD', 'ERRO: Quantidade inválida', 'error');
+            debugLog("ERRO: Quantidade inválida");
             showNotification("Por favor, informe uma quantidade válida!", "error", "Dados Incompletos");
             return;
           }
 
           try {
             // Mostrar spinner e desabilitar botão
-            addDiagnosticEntry('ADD', 'Mostrando spinner e desabilitando botão', 'info');
+            debugLog("Mostrando spinner e desabilitando botão");
             showSpinner();
             adicionarBtn.disabled = true;
             adicionarBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adicionando...';
+            
+            // Criar um ID temporário para o produto
+            const tempId = 'temp_' + Date.now();
+            debugLog(`ID temporário criado: ${tempId}`);
+            
+            // Adicionar otimisticamente à interface
+            const tempProduto = {
+              id: tempId,
+              nome: nome,
+              quantidade: quantidade,
+              localizacao: localizacao,
+              descricao: descricao,
+              tags: currentTags,
+              usuario: auth.currentUser ? auth.currentUser.email : "desconhecido",
+              data: new Date().toISOString(),
+              isTemp: true // Marcar como temporário
+            };
+            
+            debugLog("Adicionando produto otimista à interface");
+            // Adicionar à lista localmente
+            produtos.push(tempProduto);
+            renderizarProdutos();
             
             // Verificar se o usuário está autenticado
             if (!auth.currentUser) {
                 throw new Error("Usuário não autenticado. Por favor, faça login novamente.");
             }
             
-            addDiagnosticEntry('ADD', `Usuário autenticado: ${auth.currentUser.email}`, 'success');
+            debugLog("Enviando dados para o Firebase");
             
-            // Preparar dados para envio
-            const produtoData = {
+            // Enviar para o Firebase
+            const docRef = await addDoc(collection(db, "estoque"), {
               nome: nome,
               quantidade: quantidade,
               localizacao: localizacao,
@@ -2304,18 +2099,12 @@
               tags: currentTags,
               usuario: auth.currentUser.email,
               data: new Date().toISOString()
-            };
+            });
             
-            addDiagnosticEntry('ADD', `Dados preparados para envio: ${JSON.stringify(produtoData)}`, 'info');
-            
-            // Enviar para o Firebase
-            addDiagnosticEntry('ADD', 'Enviando dados para o Firebase', 'info');
-            const docRef = await addDoc(collection(db, "estoque"), produtoData);
-            
-            addDiagnosticEntry('ADD', `Documento adicionado com ID: ${docRef.id}`, 'success');
+            debugLog(`Documento adicionado com ID: ${docRef.id}`);
             
             // Registrar movimentação de entrada
-            addDiagnosticEntry('ADD', 'Registrando movimentação de entrada', 'info');
+            debugLog("Registrando movimentação de entrada");
             await addDoc(collection(db, "historico"), {
               produtoId: docRef.id,
               produtoNome: nome,
@@ -2326,10 +2115,10 @@
               data: new Date().toISOString()
             });
             
-            addDiagnosticEntry('ADD', 'Movimentação registrada com sucesso', 'success');
+            debugLog("Movimentação registrada com sucesso");
             
             // Limpar campos
-            addDiagnosticEntry('ADD', 'Limpando formulário', 'info');
+            debugLog("Limpando formulário");
             produtoInput.value = "";
             quantidadeInput.value = "";
             localizacaoInput.value = "";
@@ -2338,15 +2127,18 @@
             currentTags = [];
             renderTags();
             
-            addDiagnosticEntry('ADD', '=== PROCESSO DE ADIÇÃO CONCLUÍDO COM SUCESSO ===', 'success');
+            debugLog("=== PROCESSO DE ADIÇÃO CONCLUÍDO COM SUCESSO ===");
             showNotification("Produto adicionado com sucesso!", "success", "Item Adicionado");
           } catch (error) {
-            addDiagnosticEntry('ADD', `ERRO FATAL: ${error.message}`, 'error');
-            diagnosticData.lastError = error.message;
+            debugLog(`ERRO FATAL: ${error.message}`);
             console.error("Erro detalhado:", error);
             showNotification("Erro ao adicionar: " + error.message, "error", "Falha na Operação");
+            
+            // Remover o item temporário em caso de erro
+            produtos = produtos.filter(p => !p.isTemp);
+            renderizarProdutos();
           } finally {
-            addDiagnosticEntry('ADD', 'Finalizando processo de adição', 'info');
+            debugLog("Finalizando processo de adição");
             hideSpinner();
             // Reabilitar botão
             adicionarBtn.disabled = false;
@@ -2363,7 +2155,7 @@
 
           if (produtoId && quantidade > 0) {
             try {
-              addDiagnosticEntry('MOV', `Iniciando movimentação: produtoId=${produtoId}, quantidade=${quantidade}, tipo=${tipo}`, 'info');
+              debugLog(`Iniciando movimentação: produtoId=${produtoId}, quantidade=${quantidade}, tipo=${tipo}`);
               showSpinner();
               // Buscar produto
               const produtoRef = doc(db, "estoque", produtoId);
@@ -2376,12 +2168,12 @@
                   : produtoData.quantidade - quantidade;
                 
                 if (novaQuantidade < 0) {
-                  addDiagnosticEntry('MOV', 'ERRO: Quantidade insuficiente em estoque', 'error');
+                  debugLog("ERRO: Quantidade insuficiente em estoque");
                   showNotification("Quantidade insuficiente em estoque!", "error", "Estoque Insuficiente");
                   return;
                 }
                 
-                addDiagnosticEntry('MOV', `Atualizando quantidade de ${produtoData.quantidade} para ${novaQuantidade}`, 'info');
+                debugLog(`Atualizando quantidade de ${produtoData.quantidade} para ${novaQuantidade}`);
                 
                 // Atualizar produto
                 await updateDoc(produtoRef, { quantidade: novaQuantidade });
@@ -2397,7 +2189,7 @@
                   data: new Date().toISOString()
                 });
                 
-                addDiagnosticEntry('MOV', 'Movimentação registrada com sucesso', 'success');
+                debugLog("Movimentação registrada com sucesso");
                 
                 // Limpar campos
                 movQuantidade.value = "";
@@ -2405,28 +2197,27 @@
                 
                 showNotification(`Movimentação de ${tipo} registrada com sucesso!`, "success", "Movimentação Registrada");
               } else {
-                addDiagnosticEntry('MOV', 'ERRO: Produto não encontrado', 'error');
+                debugLog("ERRO: Produto não encontrado");
                 showNotification("Produto não encontrado!", "error", "Falha na Operação");
               }
             } catch (error) {
-              addDiagnosticEntry('MOV', `ERRO na movimentação: ${error.message}`, 'error');
-              diagnosticData.lastError = error.message;
+              debugLog(`ERRO na movimentação: ${error.message}`);
               showNotification("Erro na movimentação: " + error.message, "error", "Falha na Operação");
             } finally {
               hideSpinner();
             }
           } else {
-            addDiagnosticEntry('MOV', 'ERRO: Dados incompletos para movimentação', 'error');
+            debugLog("ERRO: Dados incompletos para movimentação");
             showNotification("Preencha os campos corretamente!", "error", "Dados Incompletos");
           }
         });
 
-        // Carregar estoque em tempo real
+        // Carregar estoque em tempo real com logs detalhados
         function carregarEstoque() {
-          addDiagnosticEntry('FIRESTORE', 'Configurando listener em tempo real para estoque', 'info');
+          debugLog("Configurando listener em tempo real para estoque...");
           
           onSnapshot(collection(db, "estoque"), (snapshot) => {
-            addDiagnosticEntry('FIRESTORE', `Snapshot recebido: ${snapshot.size} documentos`, 'info');
+            debugLog(`Snapshot recebido: ${snapshot.size} documentos`);
             produtos = [];
             listaProdutos.innerHTML = "";
             
@@ -2439,7 +2230,7 @@
               const item = docItem.data();
               item.id = docItem.id;
               produtos.push(item);
-              addDiagnosticEntry('FIRESTORE', `Produto carregado: ${item.nome}, quantidade: ${item.quantidade}`, 'info');
+              debugLog(`Produto carregado: ${item.nome}, quantidade: ${item.quantidade}`);
               
               // Atualizar métricas
               totalItens += item.quantidade;
@@ -2472,16 +2263,19 @@
                 statusIcon = "fas fa-times-circle";
               }
               
+              // Indicador visual para itens temporários
+              const tempIndicator = item.isTemp ? ' <i class="fas fa-sync fa-spin" style="color: var(--warning);"></i>' : '';
+              
               tr.innerHTML = `
-                <td>${item.id.substring(0, 8)}</td>
+                <td>${item.id.substring(0, 8)}${tempIndicator}</td>
                 <td>${item.nome}</td>
                 <td>${item.descricao || "-"}</td>
                 <td>${item.quantidade}</td>
                 <td>${item.localizacao || "-"}</td>
                 <td><span class="status-badge ${statusClass}"><i class="${statusIcon}"></i> ${statusText}</span></td>
                 <td>
-                  <button class="btn-small btn-primary" onclick="editarProduto('${item.id}')"><i class="fas fa-edit"></i></button>
-                  <button class="btn-small btn-danger" onclick="removerProduto('${item.id}')"><i class="fas fa-trash"></i></button>
+                  <button class="btn-small btn-primary" onclick="editarProduto('${item.id}')" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-edit"></i></button>
+                  <button class="btn-small btn-danger" onclick="removerProduto('${item.id}')" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-trash"></i></button>
                 </td>
               `;
               
@@ -2512,22 +2306,109 @@
             // Aplicar filtros ativos
             filtrarProdutos();
             
-            addDiagnosticEntry('FIRESTORE', 'Interface atualizada com novos dados', 'success');
+            debugLog("Interface atualizada com novos dados");
           }, (error) => {
-            addDiagnosticEntry('FIRESTORE', `ERRO no listener de estoque: ${error.message}`, 'error');
-            diagnosticData.lastError = error.message;
+            debugLog(`ERRO no listener de estoque: ${error.message}`);
             console.error("Erro no listener de estoque:", error);
             showNotification("Erro ao sincronizar dados: " + error.message, "error", "Falha na Sincronização");
           });
         }
 
+        // Função para renderizar produtos
+        function renderizarProdutos() {
+            debugLog("Renderizando produtos na interface");
+            listaProdutos.innerHTML = "";
+            
+            let totalItens = 0;
+            let highStock = 0;
+            let mediumStock = 0;
+            let lowStock = 0;
+            
+            produtos.forEach((item) => {
+                // Atualizar métricas
+                totalItens += item.quantidade;
+                if (item.quantidade > 10) {
+                    highStock += item.quantidade;
+                } else if (item.quantidade > 3) {
+                    mediumStock += item.quantidade;
+                } else {
+                    lowStock += item.quantidade;
+                }
+                
+                const tr = document.createElement("tr");
+                
+                // Status do estoque
+                let statusClass = "";
+                let statusText = "";
+                let statusIcon = "";
+                
+                if (item.quantidade > 10) {
+                    statusClass = "status-high";
+                    statusText = "Estoque Alto";
+                    statusIcon = "fas fa-check-circle";
+                } else if (item.quantidade > 3) {
+                    statusClass = "status-medium";
+                    statusText = "Estoque Médio";
+                    statusIcon = "fas fa-exclamation-circle";
+                } else {
+                    statusClass = "status-low";
+                    statusText = "Estoque Baixo";
+                    statusIcon = "fas fa-times-circle";
+                }
+                
+                // Indicador visual para itens temporários
+                const tempIndicator = item.isTemp ? ' <i class="fas fa-sync fa-spin" style="color: var(--warning);"></i>' : '';
+                
+                tr.innerHTML = `
+                    <td>${item.id.substring(0, 8)}${tempIndicator}</td>
+                    <td>${item.nome}</td>
+                    <td>${item.descricao || "-"}</td>
+                    <td>${item.quantidade}</td>
+                    <td>${item.localizacao || "-"}</td>
+                    <td><span class="status-badge ${statusClass}"><i class="${statusIcon}"></i> ${statusText}</span></td>
+                    <td>
+                        <button class="btn-small btn-primary" onclick="editarProduto('${item.id}')" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-edit"></i></button>
+                        <button class="btn-small btn-danger" onclick="removerProduto('${item.id}')" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-trash"></i></button>
+                    </td>
+                `;
+                
+                listaProdutos.appendChild(tr);
+            });
+            
+            // Atualizar dashboard
+            totalItemsEl.textContent = totalItens;
+            highStockEl.textContent = highStock;
+            mediumStockEl.textContent = mediumStock;
+            lowStockEl.textContent = lowStock;
+            itemCountEl.textContent = `${produtos.length} itens`;
+            
+            // Verificar alertas de estoque baixo
+            verificarAlertasEstoque();
+            
+            // Atualizar gráfico
+            atualizarGrafico();
+            
+            // Atualizar select de movimentação
+            atualizarSelectMovimentacao();
+            
+            // Atualizar visualização em cards se necessário
+            if (!isTableView) {
+                renderCardsView();
+            }
+            
+            // Aplicar filtros ativos
+            filtrarProdutos();
+            
+            debugLog("Renderização concluída");
+        }
+
         // Carregar histórico em tempo real
         function carregarHistorico() {
-          addDiagnosticEntry('FIRESTORE', 'Configurando listener em tempo real para histórico', 'info');
+          debugLog("Configurando listener em tempo real para histórico");
           
           const q = query(collection(db, "historico"), orderBy("data", "desc"));
           onSnapshot(q, (snapshot) => {
-            addDiagnosticEntry('FIRESTORE', `Snapshot de histórico recebido: ${snapshot.size} documentos`, 'info');
+            debugLog(`Snapshot de histórico recebido: ${snapshot.size} documentos`);
             historico = [];
             historicoList.innerHTML = "";
             
@@ -2557,15 +2438,14 @@
               historicoList.appendChild(div);
             });
           }, (error) => {
-            addDiagnosticEntry('FIRESTORE', `ERRO no listener de histórico: ${error.message}`, 'error');
-            diagnosticData.lastError = error.message;
+            debugLog(`ERRO no listener de histórico: ${error.message}`);
             console.error("Erro no listener de histórico:", error);
           });
         }
 
         // Atualizar select de movimentação
         function atualizarSelectMovimentacao() {
-          addDiagnosticEntry('UI', 'Atualizando select de movimentação', 'info');
+          debugLog("Atualizando select de movimentação");
           
           movProduto.innerHTML = '<option value="">Selecione um produto</option>';
           
@@ -2576,12 +2456,12 @@
             movProduto.appendChild(option);
           });
           
-          addDiagnosticEntry('UI', 'Select de movimentação atualizado', 'success');
+          debugLog("Select de movimentação atualizado");
         }
 
         // Atualizar gráfico
         function atualizarGrafico() {
-          addDiagnosticEntry('UI', 'Atualizando gráfico', 'info');
+          debugLog("Atualizando gráfico");
           
           const ctx = document.getElementById('estoqueChart').getContext('2d');
           
@@ -2674,12 +2554,12 @@
             }
           });
           
-          addDiagnosticEntry('UI', 'Gráfico atualizado', 'success');
+          debugLog("Gráfico atualizado");
         }
 
         // Renderizar visualização em cards
         function renderCardsView() {
-            addDiagnosticEntry('UI', 'Renderizando visualização em cards', 'info');
+            debugLog("Renderizando visualização em cards");
             
             cardsView.innerHTML = '';
             
@@ -2722,13 +2602,13 @@
             // Atualizar contador
             itemCountEl.textContent = `${filteredProducts.length} itens`;
             
-            addDiagnosticEntry('UI', 'Visualização em cards renderizada', 'success');
+            debugLog("Visualização em cards renderizada");
         }
 
         // Editar produto
         window.editarProduto = async (id) => {
           try {
-            addDiagnosticEntry('EDIT', `Editando produto: ${id}`, 'info');
+            debugLog(`Editando produto: ${id}`);
             showSpinner();
             const produtoRef = doc(db, "estoque", id);
             const produtoSnap = await getDoc(produtoRef);
@@ -2746,14 +2626,13 @@
               currentEditId = id;
               editModal.style.display = "flex";
               
-              addDiagnosticEntry('EDIT', 'Modal de edição aberto', 'success');
+              debugLog("Modal de edição aberto");
             } else {
-              addDiagnosticEntry('EDIT', 'ERRO: Produto não encontrado para edição', 'error');
+              debugLog("ERRO: Produto não encontrado para edição");
               showNotification("Produto não encontrado!", "error", "Falha na Operação");
             }
           } catch (error) {
-            addDiagnosticEntry('EDIT', `ERRO ao carregar produto para edição: ${error.message}`, 'error');
-            diagnosticData.lastError = error.message;
+            debugLog(`ERRO ao carregar produto para edição: ${error.message}`);
             showNotification("Erro ao carregar produto: " + error.message, "error", "Falha na Operação");
           } finally {
             hideSpinner();
@@ -2764,7 +2643,7 @@
         saveEditBtn.addEventListener("click", async () => {
           if (currentEditId) {
             try {
-              addDiagnosticEntry('EDIT', `Salvando edição do produto: ${currentEditId}`, 'info');
+              debugLog(`Salvando edição do produto: ${currentEditId}`);
               showSpinner();
               const produtoRef = doc(db, "estoque", currentEditId);
               
@@ -2777,11 +2656,10 @@
               });
               
               editModal.style.display = "none";
-              addDiagnosticEntry('EDIT', 'Edição salva com sucesso', 'success');
+              debugLog("Edição salva com sucesso");
               showNotification("Produto atualizado com sucesso!", "success", "Atualização Concluída");
             } catch (error) {
-              addDiagnosticEntry('EDIT', `ERRO ao atualizar produto: ${error.message}`, 'error');
-              diagnosticData.lastError = error.message;
+              debugLog(`ERRO ao atualizar produto: ${error.message}`);
               showNotification("Erro ao atualizar produto: " + error.message, "error", "Falha na Operação");
             } finally {
               hideSpinner();
@@ -2791,12 +2669,12 @@
 
         // Cancelar edição
         cancelEditBtn.addEventListener("click", () => {
-          addDiagnosticEntry('EDIT', 'Cancelando edição', 'info');
+          debugLog("Cancelando edição");
           editModal.style.display = "none";
         });
 
         closeModalBtn.addEventListener("click", () => {
-          addDiagnosticEntry('EDIT', 'Fechando modal de edição', 'info');
+          debugLog("Fechando modal de edição");
           editModal.style.display = "none";
         });
 
@@ -2804,14 +2682,13 @@
         window.removerProduto = async (id) => {
           if (confirm("Tem certeza que deseja remover este produto? Esta ação não pode ser desfeita.")) {
             try {
-              addDiagnosticEntry('DELETE', `Removendo produto: ${id}`, 'info');
+              debugLog(`Removendo produto: ${id}`);
               showSpinner();
               await deleteDoc(doc(db, "estoque", id));
-              addDiagnosticEntry('DELETE', 'Produto removido com sucesso', 'success');
+              debugLog("Produto removido com sucesso");
               showNotification("Produto removido com sucesso!", "success", "Item Removido");
             } catch (error) {
-              addDiagnosticEntry('DELETE', `ERRO ao remover produto: ${error.message}`, 'error');
-              diagnosticData.lastError = error.message;
+              debugLog(`ERRO ao remover produto: ${error.message}`);
               showNotification("Erro ao remover produto: " + error.message, "error", "Falha na Operação");
             } finally {
               hideSpinner();
@@ -2955,7 +2832,7 @@
 
         // Limpar filtros
         clearFiltersBtn.addEventListener("click", () => {
-          addDiagnosticEntry('UI', 'Limpando filtros', 'info');
+          debugLog("Limpando filtros");
           searchInput.value = "";
           filterTipo.value = "";
           filterStatus.value = "";
@@ -2965,25 +2842,25 @@
 
         // Exportar CSV
         exportCSVBtn.addEventListener("click", () => {
-            addDiagnosticEntry('EXPORT', 'Exportando dados para CSV', 'info');
+            debugLog("Exportando dados para CSV");
             exportData('csv');
         });
 
         // Exportar PDF
         exportPDFBtn.addEventListener("click", () => {
-            addDiagnosticEntry('EXPORT', 'Exportando dados para PDF', 'info');
+            debugLog("Exportando dados para PDF");
             exportData('pdf');
         });
 
         // Exportar Excel
         exportExcelBtn.addEventListener("click", () => {
-            addDiagnosticEntry('EXPORT', 'Exportando dados para Excel', 'info');
+            debugLog("Exportando dados para Excel");
             exportData('excel');
         });
 
         // Função de exportação de dados
         function exportData(format) {
-            addDiagnosticEntry('EXPORT', `Iniciando exportação no formato: ${format}`, 'info');
+            debugLog(`Iniciando exportação no formato: ${format}`);
             showSpinner();
             
             const filteredProducts = getFilteredProducts();
@@ -3012,7 +2889,7 @@
                 a.click();
                 document.body.removeChild(a);
                 
-                addDiagnosticEntry('EXPORT', 'Exportação CSV concluída', 'success');
+                debugLog("Exportação CSV concluída");
                 showNotification("Dados exportados com sucesso!", "success", "Exportação Concluída");
             } 
             else if (format === 'pdf') {
@@ -3062,7 +2939,7 @@
                 });
                 
                 doc.save(`estoque_ti_${new Date().toISOString().split('T')[0]}.pdf`);
-                addDiagnosticEntry('EXPORT', 'Exportação PDF concluída', 'success');
+                debugLog("Exportação PDF concluída");
                 showNotification("Dados exportados com sucesso!", "success", "Exportação Concluída");
             }
             else if (format === 'excel') {
@@ -3101,7 +2978,7 @@
                 
                 // Salvar arquivo
                 XLSX.writeFile(wb, `estoque_ti_${new Date().toISOString().split('T')[0]}.xlsx`);
-                addDiagnosticEntry('EXPORT', 'Exportação Excel concluída', 'success');
+                debugLog("Exportação Excel concluída");
                 showNotification("Dados exportados com sucesso!", "success", "Exportação Concluída");
             }
             
@@ -3110,7 +2987,7 @@
 
         // Verificar alertas de estoque baixo
         function verificarAlertasEstoque() {
-            addDiagnosticEntry('UI', 'Verificando alertas de estoque baixo', 'info');
+            debugLog("Verificando alertas de estoque baixo");
             stockAlerts.innerHTML = '';
             
             produtos.forEach(produto => {
@@ -3122,14 +2999,14 @@
                         <p>${produto.nome}: apenas ${produto.quantidade} unidades restantes</p>
                     `;
                     stockAlerts.appendChild(alert);
-                    addDiagnosticEntry('UI', `Alerta de estoque baixo para: ${produto.nome}`, 'warning');
+                    debugLog(`Alerta de estoque baixo para: ${produto.nome}`);
                 }
             });
         }
 
         // Inicializar calendário
         function inicializarCalendario() {
-            addDiagnosticEntry('UI', 'Inicializando calendário', 'info');
+            debugLog("Inicializando calendário");
             renderizarCalendario();
             
             prevMonthBtn.addEventListener('click', () => {
@@ -3200,18 +3077,18 @@
                 calendarGrid.appendChild(dayEl);
             }
             
-            addDiagnosticEntry('UI', 'Calendário renderizado', 'success');
+            debugLog("Calendário renderizado");
         }
 
         // Relatórios
         reportInventory.addEventListener('click', () => {
-            addDiagnosticEntry('REPORT', 'Gerando relatório de inventário', 'info');
+            debugLog("Gerando relatório de inventário");
             exportData('pdf');
         });
 
         reportMovement.addEventListener('click', () => {
             // Gerar relatório de movimentações
-            addDiagnosticEntry('REPORT', 'Gerando relatório de movimentações', 'info');
+            debugLog("Gerando relatório de movimentações");
             showSpinner();
             
             const { jsPDF } = window.jspdf;
@@ -3251,18 +3128,18 @@
             });
             
             doc.save(`movimentacoes_estoque_${new Date().toISOString().split('T')[0]}.pdf`);
-            addDiagnosticEntry('REPORT', 'Relatório de movimentações gerado', 'success');
+            debugLog("Relatório de movimentações gerado");
             showNotification("Relatório gerado com sucesso!", "success", "Relatório Concluído");
             hideSpinner();
         });
 
         reportLowStock.addEventListener('click', () => {
             // Filtrar produtos com estoque baixo
-            addDiagnosticEntry('REPORT', 'Gerando relatório de estoque baixo', 'info');
+            debugLog("Gerando relatório de estoque baixo");
             const lowStockProducts = produtos.filter(p => p.quantidade <= 3);
             
             if (lowStockProducts.length === 0) {
-                addDiagnosticEntry('REPORT', 'Nenhum produto com estoque baixo encontrado', 'info');
+                debugLog("Nenhum produto com estoque baixo encontrado");
                 showNotification("Não há produtos com estoque baixo!", "info", "Informação");
                 return;
             }
@@ -3299,14 +3176,14 @@
             });
             
             doc.save(`estoque_baixo_${new Date().toISOString().split('T')[0]}.pdf`);
-            addDiagnosticEntry('REPORT', 'Relatório de estoque baixo gerado', 'success');
+            debugLog("Relatório de estoque baixo gerado");
             showNotification("Relatório gerado com sucesso!", "success", "Relatório Concluído");
             hideSpinner();
         });
 
         reportValue.addEventListener('click', () => {
             // Simular relatório de valorização (valores fictícios)
-            addDiagnosticEntry('REPORT', 'Gerando relatório de valorização', 'info');
+            debugLog("Gerando relatório de valorização");
             showSpinner();
             
             const { jsPDF } = window.jspdf;
@@ -3373,14 +3250,14 @@
             doc.text(`Valor Total do Estoque: R$ ${valorTotal.toFixed(2)}`, 20, yPosition);
             
             doc.save(`valorizacao_estoque_${new Date().toISOString().split('T')[0]}.pdf`);
-            addDiagnosticEntry('REPORT', 'Relatório de valorização gerado', 'success');
+            debugLog("Relatório de valorização gerado");
             showNotification("Relatório gerado com sucesso!", "success", "Relatório Concluído");
             hideSpinner();
         });
 
         // Mostrar notificação
         function showNotification(message, type, title) {
-            addDiagnosticEntry('NOTIFICATION', `${title} - ${message}`, type);
+            debugLog(`Mostrando notificação: ${title} - ${message}`);
             const notificationEl = document.getElementById("notification");
             const notificationTitleEl = notificationEl.querySelector(".notification-title");
             const notificationMessageEl = document.getElementById("notificationText");
@@ -3403,16 +3280,13 @@
             }, 5000);
         }
 
-        // Inicialização
-        addDiagnosticEntry('INIT', 'Aplicação inicializada', 'info');
-        diagnosticData.firebaseInit = true;
-        diagnosticData.firestoreInit = true;
-        
         // Verificar conexão inicialmente e adicionar listeners
-        window.addEventListener('online', updateNetworkStatus);
-        window.addEventListener('offline', updateNetworkStatus);
-        updateNetworkStatus();
-        updateDiagnosticPanel();
+        window.addEventListener('online', checkConnection);
+        window.addEventListener('offline', checkConnection);
+        checkConnection();
+        
+        // Inicialização
+        debugLog("Aplicação inicializada");
     </script>
 </body>
 </html>
