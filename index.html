@@ -10,6 +10,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
+        /* Estilos CSS mantidos iguais */
         :root {
             --primary: #2563eb;
             --primary-dark: #1d4ed8;
@@ -2055,6 +2056,13 @@
           }
 
           try {
+            // 🔹 Verificar se o usuário está logado antes de adicionar produto
+            if (!auth.currentUser) {
+              debugLog("ERRO: Usuário não autenticado");
+              showNotification("Você precisa estar logado para adicionar produtos!", "error", "Acesso Negado");
+              return;
+            }
+
             // Mostrar spinner e desabilitar botão
             debugLog("Mostrando spinner e desabilitando botão");
             showSpinner();
@@ -2065,41 +2073,27 @@
             const tempId = 'temp_' + Date.now();
             debugLog(`ID temporário criado: ${tempId}`);
             
-            // Adicionar otimisticamente à interface
-            const tempProduto = {
-              id: tempId,
+            // 🔹 Criar objeto produto incluindo quem adicionou
+            const produto = {
               nome: nome,
               quantidade: quantidade,
               localizacao: localizacao,
               descricao: descricao,
               tags: currentTags,
-              usuario: auth.currentUser ? auth.currentUser.email : "desconhecido",
+              usuario: auth.currentUser.email, // Salva quem adicionou o produto
               data: new Date().toISOString(),
               isTemp: true // Marcar como temporário
             };
             
             debugLog("Adicionando produto otimista à interface");
             // Adicionar à lista localmente
-            produtos.push(tempProduto);
+            produtos.push(produto);
             renderizarProdutos();
-            
-            // Verificar se o usuário está autenticado
-            if (!auth.currentUser) {
-                throw new Error("Usuário não autenticado. Por favor, faça login novamente.");
-            }
             
             debugLog("Enviando dados para o Firebase");
             
-            // Enviar para o Firebase
-            const docRef = await addDoc(collection(db, "estoque"), {
-              nome: nome,
-              quantidade: quantidade,
-              localizacao: localizacao,
-              descricao: descricao,
-              tags: currentTags,
-              usuario: auth.currentUser.email,
-              data: new Date().toISOString()
-            });
+            // 🔹 Adicionar produto no Firestore
+            const docRef = await addDoc(collection(db, "estoque"), produto);
             
             debugLog(`Documento adicionado com ID: ${docRef.id}`);
             
@@ -2216,7 +2210,9 @@
         function carregarEstoque() {
           debugLog("Configurando listener em tempo real para estoque...");
           
-          onSnapshot(collection(db, "estoque"), (snapshot) => {
+          // 🔹 Atualizar lista de produtos em tempo real
+          const produtosRef = collection(db, "estoque");
+          onSnapshot(produtosRef, (snapshot) => {
             debugLog(`Snapshot recebido: ${snapshot.size} documentos`);
             produtos = [];
             listaProdutos.innerHTML = "";
@@ -2230,7 +2226,7 @@
               const item = docItem.data();
               item.id = docItem.id;
               produtos.push(item);
-              debugLog(`Produto carregado: ${item.nome}, quantidade: ${item.quantidade}`);
+              debugLog(`Produto carregado: ${item.nome}, quantidade: ${item.quantidade}, usuário: ${item.usuario || 'desconhecido'}`);
               
               // Atualizar métricas
               totalItens += item.quantidade;
@@ -2866,7 +2862,7 @@
             const filteredProducts = getFilteredProducts();
             
             if (format === 'csv') {
-                let csv = "ID,Produto,Descrição,Quantidade,Localização,Status,Tags\n";
+                let csv = "ID,Produto,Descrição,Quantidade,Localização,Status,Tags,Usuário\n";
                 
                 filteredProducts.forEach(produto => {
                     let status = "";
@@ -2876,7 +2872,7 @@
                     
                     const tags = (produto.tags || []).join(';');
                     
-                    csv += `${produto.id.substring(0, 8)},${produto.nome},"${produto.descricao || ""}",${produto.quantidade},"${produto.localizacao || ""}",${status},"${tags}"\n`;
+                    csv += `${produto.id.substring(0, 8)},${produto.nome},"${produto.descricao || ""}",${produto.quantidade},"${produto.localizacao || ""}",${status},"${tags}","${produto.usuario || ""}"\n`;
                 });
                 
                 const blob = new Blob([csv], { type: "text/csv" });
@@ -2929,6 +2925,8 @@
                     yPosition += 7;
                     doc.text(`Status: ${status}`, 20, yPosition);
                     yPosition += 7;
+                    doc.text(`Usuário: ${produto.usuario || "Não informado"}`, 20, yPosition);
+                    yPosition += 7;
                     
                     if (produto.tags && produto.tags.length > 0) {
                         doc.text(`Tags: ${produto.tags.join(', ')}`, 20, yPosition);
@@ -2948,7 +2946,7 @@
                 
                 // Preparar dados
                 const wsData = [
-                    ["ID", "Produto", "Descrição", "Quantidade", "Localização", "Status", "Tags"]
+                    ["ID", "Produto", "Descrição", "Quantidade", "Localização", "Status", "Tags", "Usuário"]
                 ];
                 
                 filteredProducts.forEach(produto => {
@@ -2966,7 +2964,8 @@
                         produto.quantidade,
                         produto.localizacao || "",
                         status,
-                        tags
+                        tags,
+                        produto.usuario || ""
                     ]);
                 });
                 
@@ -3172,6 +3171,8 @@
                 doc.text(`Localização: ${produto.localizacao || "Não informado"}`, 20, yPosition);
                 yPosition += 7;
                 doc.text(`Descrição: ${produto.descricao || "Não informado"}`, 20, yPosition);
+                yPosition += 7;
+                doc.text(`Usuário: ${produto.usuario || "Não informado"}`, 20, yPosition);
                 yPosition += 10; // Espaçamento entre produtos
             });
             
