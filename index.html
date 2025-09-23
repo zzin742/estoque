@@ -10,6 +10,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
+        /* Estilos CSS permanecem os mesmos */
         :root {
             --primary: #2563eb;
             --primary-dark: #1d4ed8;
@@ -2031,9 +2032,16 @@
             });
         }
 
-        // Adicionar produto com melhor tratamento de erros
+        // Adicionar produto com verificação de autenticação
         adicionarBtn.addEventListener("click", async () => {
           debugLog("=== INÍCIO DO PROCESSO DE ADIÇÃO ===");
+          
+          // Verificar se o usuário está autenticado
+          if (!auth.currentUser) {
+            debugLog("ERRO: Usuário não autenticado");
+            showNotification("Você precisa estar logado para adicionar produtos!", "error", "Acesso Negado");
+            return;
+          }
           
           const nome = produtoInput.value;
           const quantidade = parseInt(quantidadeInput.value);
@@ -2055,13 +2063,6 @@
           }
 
           try {
-            // 🔹 Verificar se o usuário está logado antes de adicionar produto
-            if (!auth.currentUser) {
-              debugLog("ERRO: Usuário não autenticado");
-              showNotification("Você precisa estar logado para adicionar produtos!", "error", "Acesso Negado");
-              return;
-            }
-
             // Mostrar spinner e desabilitar botão
             debugLog("Mostrando spinner e desabilitando botão");
             showSpinner();
@@ -2072,7 +2073,7 @@
             const tempId = 'temp_' + Date.now();
             debugLog(`ID temporário criado: ${tempId}`);
             
-            // 🔹 Criar objeto produto incluindo quem adicionou
+            // Criar objeto produto incluindo quem adicionou
             const produto = {
               nome: nome,
               quantidade: quantidade,
@@ -2091,7 +2092,7 @@
             
             debugLog("Enviando dados para o Firebase");
             
-            // 🔹 Adicionar produto no Firestore
+            // Adicionar produto no Firestore
             const docRef = await addDoc(collection(db, "estoque"), produto);
             
             debugLog(`Documento adicionado com ID: ${docRef.id}`);
@@ -2139,8 +2140,15 @@
           }
         });
 
-        // Movimentação de estoque
+        // Movimentação de estoque com verificação de autenticação
         movimentarBtn.addEventListener("click", async () => {
+          // Verificar se o usuário está autenticado
+          if (!auth.currentUser) {
+            debugLog("ERRO: Usuário não autenticado");
+            showNotification("Você precisa estar logado para movimentar estoque!", "error", "Acesso Negado");
+            return;
+          }
+          
           const produtoId = movProduto.value;
           const quantidade = parseInt(movQuantidade.value);
           const tipo = movTipo.value;
@@ -2209,7 +2217,7 @@
         function carregarEstoque() {
           debugLog("Configurando listener em tempo real para estoque...");
           
-          // 🔹 Atualizar lista de produtos em tempo real
+          // Atualizar lista de produtos em tempo real
           const produtosRef = collection(db, "estoque");
           onSnapshot(produtosRef, (snapshot) => {
             debugLog(`Snapshot recebido: ${snapshot.size} documentos`);
@@ -2261,7 +2269,7 @@
               // Indicador visual para itens temporários
               const tempIndicator = item.isTemp ? ' <i class="fas fa-sync fa-spin" style="color: var(--warning);"></i>' : '';
               
-              // 🔹 Correção do erro de substring - Verificar se item.id existe
+              // Correção do erro de substring - Verificar se item.id existe
               const id = item.id ? item.id.substring(0, 8) : 'sem-id';
               const nome = item.nome || 'Produto sem nome';
               const descricao = item.descricao || "-";
@@ -2361,7 +2369,7 @@
                 // Indicador visual para itens temporários
                 const tempIndicator = item.isTemp ? ' <i class="fas fa-sync fa-spin" style="color: var(--warning);"></i>' : '';
                 
-                // 🔹 Correção do erro de substring - Verificar se item.id existe
+                // Correção do erro de substring - Verificar se item.id existe
                 const id = item.id ? item.id.substring(0, 8) : 'sem-id';
                 const nome = item.nome || 'Produto sem nome';
                 const descricao = item.descricao || "-";
@@ -2614,8 +2622,15 @@
             debugLog("Visualização em cards renderizada");
         }
 
-        // Editar produto
+        // Editar produto com verificação de autenticação
         window.editarProduto = async (id) => {
+          // Verificar se o usuário está autenticado
+          if (!auth.currentUser) {
+            debugLog("ERRO: Usuário não autenticado");
+            showNotification("Você precisa estar logado para editar produtos!", "error", "Acesso Negado");
+            return;
+          }
+          
           try {
             debugLog(`Editando produto: ${id}`);
             showSpinner();
@@ -2648,8 +2663,15 @@
           }
         };
 
-        // Salvar edição
+        // Salvar edição com verificação de autenticação
         saveEditBtn.addEventListener("click", async () => {
+          // Verificar se o usuário está autenticado
+          if (!auth.currentUser) {
+            debugLog("ERRO: Usuário não autenticado");
+            showNotification("Você precisa estar logado para editar produtos!", "error", "Acesso Negado");
+            return;
+          }
+          
           if (currentEditId) {
             try {
               debugLog(`Salvando edição do produto: ${currentEditId}`);
@@ -2687,8 +2709,15 @@
           editModal.style.display = "none";
         });
 
-        // Remover produto
+        // Remover produto com verificação de autenticação
         window.removerProduto = async (id) => {
+          // Verificar se o usuário está autenticado
+          if (!auth.currentUser) {
+            debugLog("ERRO: Usuário não autenticado");
+            showNotification("Você precisa estar logado para remover produtos!", "error", "Acesso Negado");
+            return;
+          }
+          
           if (confirm("Tem certeza que deseja remover este produto? Esta ação não pode ser desfeita.")) {
             try {
               debugLog(`Removendo produto: ${id}`);
