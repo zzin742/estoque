@@ -10,7 +10,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        /* Estilos CSS mantidos iguais */
         :root {
             --primary: #2563eb;
             --primary-dark: #1d4ed8;
@@ -2277,8 +2276,8 @@
                 <td>${localizacao}</td>
                 <td><span class="status-badge ${statusClass}"><i class="${statusIcon}"></i> ${statusText}</span></td>
                 <td>
-                  <button class="btn-small btn-primary edit-btn" data-id="${item.id}" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-edit"></i></button>
-                  <button class="btn-small btn-danger delete-btn" data-id="${item.id}" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-trash"></i></button>
+                  <button class="btn-small btn-primary" onclick="editarProduto('${item.id}')" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-edit"></i></button>
+                  <button class="btn-small btn-danger" onclick="removerProduto('${item.id}')" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-trash"></i></button>
                 </td>
               `;
               
@@ -2308,9 +2307,6 @@
             
             // Aplicar filtros ativos
             filtrarProdutos();
-            
-            // Adicionar event listeners para botões de editar e excluir
-            adicionarEventListenersBotoes();
             
             debugLog("Interface atualizada com novos dados");
           }, (error) => {
@@ -2380,8 +2376,8 @@
                     <td>${localizacao}</td>
                     <td><span class="status-badge ${statusClass}"><i class="${statusIcon}"></i> ${statusText}</span></td>
                     <td>
-                        <button class="btn-small btn-primary edit-btn" data-id="${item.id}" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-edit"></i></button>
-                        <button class="btn-small btn-danger delete-btn" data-id="${item.id}" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-trash"></i></button>
+                        <button class="btn-small btn-primary" onclick="editarProduto('${item.id}')" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-edit"></i></button>
+                        <button class="btn-small btn-danger" onclick="removerProduto('${item.id}')" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-trash"></i></button>
                     </td>
                 `;
                 
@@ -2412,120 +2408,7 @@
             // Aplicar filtros ativos
             filtrarProdutos();
             
-            // Adicionar event listeners para botões de editar e excluir
-            adicionarEventListenersBotoes();
-            
             debugLog("Renderização concluída");
-        }
-
-        // Função para adicionar event listeners aos botões
-        function adicionarEventListenersBotoes() {
-            // Adicionar event listeners para botões de editar
-            document.querySelectorAll('.edit-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const id = this.getAttribute('data-id');
-                    editarProduto(id);
-                });
-            });
-            
-            // Adicionar event listeners para botões de excluir
-            document.querySelectorAll('.delete-btn').forEach(btn => {
-                btn.addEventListener('click', function() {
-                    const id = this.getAttribute('data-id');
-                    removerProduto(id);
-                });
-            });
-        }
-
-        // Editar produto
-        async function editarProduto(id) {
-          try {
-            debugLog(`Editando produto: ${id}`);
-            showSpinner();
-            const produtoRef = doc(db, "estoque", id);
-            const produtoSnap = await getDoc(produtoRef);
-            
-            if (produtoSnap.exists()) {
-              const produtoData = produtoSnap.data();
-              
-              editProduto.value = produtoData.nome;
-              editQuantidade.value = produtoData.quantidade;
-              editLocalizacao.value = produtoData.localizacao || "";
-              editDescricao.value = produtoData.descricao || "";
-              currentEditTags = produtoData.tags || [];
-              renderEditTags();
-              
-              currentEditId = id;
-              editModal.style.display = "flex";
-              
-              debugLog("Modal de edição aberto");
-            } else {
-              debugLog("ERRO: Produto não encontrado para edição");
-              showNotification("Produto não encontrado!", "error", "Falha na Operação");
-            }
-          } catch (error) {
-            debugLog(`ERRO ao carregar produto para edição: ${error.message}`);
-            showNotification("Erro ao carregar produto: " + error.message, "error", "Falha na Operação");
-          } finally {
-            hideSpinner();
-          }
-        }
-
-        // Salvar edição
-        saveEditBtn.addEventListener("click", async () => {
-          if (currentEditId) {
-            try {
-              debugLog(`Salvando edição do produto: ${currentEditId}`);
-              showSpinner();
-              const produtoRef = doc(db, "estoque", currentEditId);
-              
-              await updateDoc(produtoRef, {
-                nome: editProduto.value,
-                quantidade: parseInt(editQuantidade.value),
-                localizacao: editLocalizacao.value,
-                descricao: editDescricao.value,
-                tags: currentEditTags
-              });
-              
-              editModal.style.display = "none";
-              debugLog("Edição salva com sucesso");
-              showNotification("Produto atualizado com sucesso!", "success", "Atualização Concluída");
-            } catch (error) {
-              debugLog(`ERRO ao atualizar produto: ${error.message}`);
-              showNotification("Erro ao atualizar produto: " + error.message, "error", "Falha na Operação");
-            } finally {
-              hideSpinner();
-            }
-          }
-        });
-
-        // Cancelar edição
-        cancelEditBtn.addEventListener("click", () => {
-          debugLog("Cancelando edição");
-          editModal.style.display = "none";
-        });
-
-        closeModalBtn.addEventListener("click", () => {
-          debugLog("Fechando modal de edição");
-          editModal.style.display = "none";
-        });
-
-        // Remover produto
-        async function removerProduto(id) {
-          if (confirm("Tem certeza que deseja remover este produto? Esta ação não pode ser desfeita.")) {
-            try {
-              debugLog(`Removendo produto: ${id}`);
-              showSpinner();
-              await deleteDoc(doc(db, "estoque", id));
-              debugLog("Produto removido com sucesso");
-              showNotification("Produto removido com sucesso!", "success", "Item Removido");
-            } catch (error) {
-              debugLog(`ERRO ao remover produto: ${error.message}`);
-              showNotification("Erro ao remover produto: " + error.message, "error", "Falha na Operação");
-            } finally {
-              hideSpinner();
-            }
-          }
         }
 
         // Carregar histórico em tempo real
@@ -2717,8 +2600,8 @@
                     </div>
                     <div class="status-badge ${statusClass}">${statusText}</div>
                     <div class="actions">
-                        <button class="btn-small btn-primary edit-btn" data-id="${produto.id}"><i class="fas fa-edit"></i></button>
-                        <button class="btn-small btn-danger delete-btn" data-id="${produto.id}"><i class="fas fa-trash"></i></button>
+                        <button class="btn-small btn-primary" onclick="editarProduto('${produto.id}')"><i class="fas fa-edit"></i></button>
+                        <button class="btn-small btn-danger" onclick="removerProduto('${produto.id}')"><i class="fas fa-trash"></i></button>
                     </div>
                 `;
                 
@@ -2728,11 +2611,99 @@
             // Atualizar contador
             itemCountEl.textContent = `${filteredProducts.length} itens`;
             
-            // Adicionar event listeners para botões de editar e excluir
-            adicionarEventListenersBotoes();
-            
             debugLog("Visualização em cards renderizada");
         }
+
+        // Editar produto
+        window.editarProduto = async (id) => {
+          try {
+            debugLog(`Editando produto: ${id}`);
+            showSpinner();
+            const produtoRef = doc(db, "estoque", id);
+            const produtoSnap = await getDoc(produtoRef);
+            
+            if (produtoSnap.exists()) {
+              const produtoData = produtoSnap.data();
+              
+              editProduto.value = produtoData.nome;
+              editQuantidade.value = produtoData.quantidade;
+              editLocalizacao.value = produtoData.localizacao || "";
+              editDescricao.value = produtoData.descricao || "";
+              currentEditTags = produtoData.tags || [];
+              renderEditTags();
+              
+              currentEditId = id;
+              editModal.style.display = "flex";
+              
+              debugLog("Modal de edição aberto");
+            } else {
+              debugLog("ERRO: Produto não encontrado para edição");
+              showNotification("Produto não encontrado!", "error", "Falha na Operação");
+            }
+          } catch (error) {
+            debugLog(`ERRO ao carregar produto para edição: ${error.message}`);
+            showNotification("Erro ao carregar produto: " + error.message, "error", "Falha na Operação");
+          } finally {
+            hideSpinner();
+          }
+        };
+
+        // Salvar edição
+        saveEditBtn.addEventListener("click", async () => {
+          if (currentEditId) {
+            try {
+              debugLog(`Salvando edição do produto: ${currentEditId}`);
+              showSpinner();
+              const produtoRef = doc(db, "estoque", currentEditId);
+              
+              await updateDoc(produtoRef, {
+                nome: editProduto.value,
+                quantidade: parseInt(editQuantidade.value),
+                localizacao: editLocalizacao.value,
+                descricao: editDescricao.value,
+                tags: currentEditTags
+              });
+              
+              editModal.style.display = "none";
+              debugLog("Edição salva com sucesso");
+              showNotification("Produto atualizado com sucesso!", "success", "Atualização Concluída");
+            } catch (error) {
+              debugLog(`ERRO ao atualizar produto: ${error.message}`);
+              showNotification("Erro ao atualizar produto: " + error.message, "error", "Falha na Operação");
+            } finally {
+              hideSpinner();
+            }
+          }
+        });
+
+        // Cancelar edição
+        cancelEditBtn.addEventListener("click", () => {
+          debugLog("Cancelando edição");
+          editModal.style.display = "none";
+        });
+
+        closeModalBtn.addEventListener("click", () => {
+          debugLog("Fechando modal de edição");
+          editModal.style.display = "none";
+        });
+
+        // Remover produto
+        window.removerProduto = async (id) => {
+          if (confirm("Tem certeza que deseja remover este produto? Esta ação não pode ser desfeita.")) {
+            try {
+              debugLog(`Removendo produto: ${id}`);
+              showSpinner();
+              await deleteDoc(doc(db, "estoque", id));
+              debugLog("Produto removido com sucesso");
+              showNotification("Produto removido com sucesso!", "success", "Item Removido");
+            } catch (error) {
+              debugLog(`ERRO ao remover produto: ${error.message}`);
+              showNotification("Erro ao remover produto: " + error.message, "error", "Falha na Operação");
+            } finally {
+              hideSpinner();
+            }
+          }
+        };
 
         // Sistema de busca com histórico
         searchInput.addEventListener('input', (e) => {
