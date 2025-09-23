@@ -10,7 +10,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        /* Estilos CSS mantidos iguais */
         :root {
             --primary: #2563eb;
             --primary-dark: #1d4ed8;
@@ -2262,12 +2261,19 @@
               // Indicador visual para itens temporários
               const tempIndicator = item.isTemp ? ' <i class="fas fa-sync fa-spin" style="color: var(--warning);"></i>' : '';
               
+              // 🔹 Correção do erro de substring - Verificar se item.id existe
+              const id = item.id ? item.id.substring(0, 8) : 'sem-id';
+              const nome = item.nome || 'Produto sem nome';
+              const descricao = item.descricao || "-";
+              const quantidade = item.quantidade || 0;
+              const localizacao = item.localizacao || "-";
+              
               tr.innerHTML = `
-                <td>${item.id.substring(0, 8)}${tempIndicator}</td>
-                <td>${item.nome}</td>
-                <td>${item.descricao || "-"}</td>
-                <td>${item.quantidade}</td>
-                <td>${item.localizacao || "-"}</td>
+                <td>${id}${tempIndicator}</td>
+                <td>${nome}</td>
+                <td>${descricao}</td>
+                <td>${quantidade}</td>
+                <td>${localizacao}</td>
                 <td><span class="status-badge ${statusClass}"><i class="${statusIcon}"></i> ${statusText}</span></td>
                 <td>
                   <button class="btn-small btn-primary" onclick="editarProduto('${item.id}')" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-edit"></i></button>
@@ -2355,12 +2361,19 @@
                 // Indicador visual para itens temporários
                 const tempIndicator = item.isTemp ? ' <i class="fas fa-sync fa-spin" style="color: var(--warning);"></i>' : '';
                 
+                // 🔹 Correção do erro de substring - Verificar se item.id existe
+                const id = item.id ? item.id.substring(0, 8) : 'sem-id';
+                const nome = item.nome || 'Produto sem nome';
+                const descricao = item.descricao || "-";
+                const quantidade = item.quantidade || 0;
+                const localizacao = item.localizacao || "-";
+                
                 tr.innerHTML = `
-                    <td>${item.id.substring(0, 8)}${tempIndicator}</td>
-                    <td>${item.nome}</td>
-                    <td>${item.descricao || "-"}</td>
-                    <td>${item.quantidade}</td>
-                    <td>${item.localizacao || "-"}</td>
+                    <td>${id}${tempIndicator}</td>
+                    <td>${nome}</td>
+                    <td>${descricao}</td>
+                    <td>${quantidade}</td>
+                    <td>${localizacao}</td>
                     <td><span class="status-badge ${statusClass}"><i class="${statusIcon}"></i> ${statusText}</span></td>
                     <td>
                         <button class="btn-small btn-primary" onclick="editarProduto('${item.id}')" ${item.isTemp ? 'disabled' : ''}><i class="fas fa-edit"></i></button>
@@ -2752,11 +2765,11 @@
             const locationFilter = filterLocation.value.toLowerCase();
             
             return produtos.filter(produto => {
-                const id = produto.id.toLowerCase();
-                const nome = produto.nome.toLowerCase();
-                const descricao = (produto.descricao || "").toLowerCase();
-                const localizacao = (produto.localizacao || "").toLowerCase();
-                const tags = (produto.tags || []).join(' ').toLowerCase();
+                const id = produto.id ? produto.id.toLowerCase() : '';
+                const nome = produto.nome ? produto.nome.toLowerCase() : '';
+                const descricao = produto.descricao ? produto.descricao.toLowerCase() : '';
+                const localizacao = produto.localizacao ? produto.localizacao.toLowerCase() : '';
+                const tags = produto.tags ? produto.tags.join(' ').toLowerCase() : '';
                 
                 // Verificar status
                 let status = "";
@@ -2870,9 +2883,10 @@
                     else if (produto.quantidade > 3) status = "Estoque Médio";
                     else status = "Estoque Baixo";
                     
-                    const tags = (produto.tags || []).join(';');
+                    const tags = produto.tags ? produto.tags.join(';') : '';
+                    const id = produto.id ? produto.id.substring(0, 8) : '';
                     
-                    csv += `${produto.id.substring(0, 8)},${produto.nome},"${produto.descricao || ""}",${produto.quantidade},"${produto.localizacao || ""}",${status},"${tags}","${produto.usuario || ""}"\n`;
+                    csv += `${id},${produto.nome},"${produto.descricao || ""}",${produto.quantidade},"${produto.localizacao || ""}",${status},"${tags}","${produto.usuario || ""}"\n`;
                 });
                 
                 const blob = new Blob([csv], { type: "text/csv" });
@@ -2913,7 +2927,9 @@
                     else if (produto.quantidade > 3) status = "Estoque Médio";
                     else status = "Estoque Baixo";
                     
-                    doc.text(`ID: ${produto.id.substring(0, 8)}`, 20, yPosition);
+                    const id = produto.id ? produto.id.substring(0, 8) : '';
+                    
+                    doc.text(`ID: ${id}`, 20, yPosition);
                     yPosition += 7;
                     doc.text(`Produto: ${produto.nome}`, 20, yPosition);
                     yPosition += 7;
@@ -2955,10 +2971,11 @@
                     else if (produto.quantidade > 3) status = "Estoque Médio";
                     else status = "Estoque Baixo";
                     
-                    const tags = (produto.tags || []).join(';');
+                    const tags = produto.tags ? produto.tags.join(';') : '';
+                    const id = produto.id ? produto.id.substring(0, 8) : '';
                     
                     wsData.push([
-                        produto.id.substring(0, 8),
+                        id,
                         produto.nome,
                         produto.descricao || "",
                         produto.quantidade,
